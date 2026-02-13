@@ -1,0 +1,10 @@
+[gd_scene format=3 uid="uid://dcgn1qrj8631e"]
+
+[ext_resource type="Script" uid="uid://ckw7d4n8sb4v" path="res://skripts/Main/main.gd" id="1_78s5d"]
+
+[node name="Main" type="Node2D" unique_id=1094574164]
+script = ExtResource("1_78s5d")
+
+[node name="ActveiScene" type="Node" parent="." unique_id=1976223613]
+
+[node name="GlobalUI" type="CanvasLayer" parent="." unique_id=731685891]

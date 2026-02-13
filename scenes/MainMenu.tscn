@@ -1,8 +1,8 @@
 [gd_scene format=3 uid="uid://t3iprgjm47mh"]
 
-[ext_resource type="Script" uid="uid://c3mcb48biw53n" path="res://skripts/main_scene/main_scene.gd" id="1_w2twt"]
+[ext_resource type="Script" uid="uid://c3mcb48biw53n" path="res://skripts/MainMenu/main_menu.gd" id="1_w2twt"]
 
-[node name="MainScene" type="Node2D" unique_id=1712892445]
+[node name="MainMenu" type="Node2D" unique_id=1712892445]
 script = ExtResource("1_w2twt")
 
 [node name="StartButton" type="Button" parent="." unique_id=453392988]

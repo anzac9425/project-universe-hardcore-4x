@@ -1,12 +1,36 @@
 [gd_scene format=3 uid="uid://dupk85xbdfs4o"]
 
-[ext_resource type="Script" uid="uid://xebx26bl1ocv" path="res://skripts/system_scene/system_camera.gd" id="1_dmrfl"]
 [ext_resource type="Texture2D" uid="uid://b4hx6rnxyryah" path="res://icon.svg" id="2_esgml"]
 
-[node name="SystemScene" type="Node2D" unique_id=1589196222]
+[sub_resource type="GDScript" id="GDScript_236gl"]
+script/source = "extends Camera2D
+
+var dragging: bool = false
+var last_mouse_pos: Vector2 = Vector2.ZERO
+
+func _input(event):
+	if event is InputEventMouseButton:
+		if event.button_index == MOUSE_BUTTON_WHEEL_UP:
+			zoom *= 1.1
+		elif event.button_index == MOUSE_BUTTON_WHEEL_DOWN:
+			zoom *= 0.9
+
+	if event is InputEventMouseButton:
+		if event.button_index == MOUSE_BUTTON_MIDDLE:
+			dragging = event.pressed
+			if dragging:
+				last_mouse_pos = get_global_mouse_position()
+	
+	elif event is InputEventMouseMotion and dragging:
+		var mouse_delta = get_global_mouse_position() - last_mouse_pos
+		position -= mouse_delta * zoom.x
+		last_mouse_pos = get_global_mouse_position()
+"
+
+[node name="Ingame" type="Node2D" unique_id=1589196222]
 
 [node name="SystemCamera" type="Camera2D" parent="." unique_id=1994827330]
-script = ExtResource("1_dmrfl")
+script = SubResource("GDScript_236gl")
 
 [node name="Background" type="ParallaxBackground" parent="." unique_id=1679350151]
 
