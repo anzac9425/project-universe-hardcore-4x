@@ -35,11 +35,13 @@ func calculate(bp) -> void:
 	var cx_sum   := 0.0
 	var cy_sum   := 0.0
 	# 루프 내 cell_index() 중복 호출 제거 - 직접 오프셋 증가
-	var stride   := bp.width * CellDefs.BYTES_PER_CELL
+	var w: int    = int(bp.width)
+	var h: int    = int(bp.height)
+	var stride: int = w * CellDefs.BYTES_PER_CELL
 
-	for y in range(bp.height):
+	for y in range(h):
 		var row_base := y * stride
-		for x in range(bp.width):
+		for x in range(w):
 			var base := row_base + x * CellDefs.BYTES_PER_CELL
 			var flags := bp.cell_data[base + CellDefs.BYTE_FLAGS]
 
@@ -104,8 +106,8 @@ func _count_perimeter_cells(bp) -> int:
 	# 점유 셀 중 상하좌우에 빈 셀이 하나라도 있는 셀 = 외장 셀
 	# 핫패스 최적화: 임시 배열/메서드 호출 최소화
 	var count := 0
-	var w := bp.width
-	var h := bp.height
+	var w: int = int(bp.width)
+	var h: int = int(bp.height)
 	for y in range(h):
 		for x in range(w):
 			if not bp.is_occupied(x, y):

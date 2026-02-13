@@ -78,8 +78,8 @@ func screen_to_cell(screen_pos: Vector2) -> Vector2i:
 func _init_preview_texture() -> void:
 	if current_blueprint == null:
 		return
-	var pw := current_blueprint.width
-	var ph := current_blueprint.height
+	var pw: int = int(current_blueprint.width)
+	var ph: int = int(current_blueprint.height)
 	preview_image = Image.create(pw, ph, false, Image.FORMAT_RGBA8)
 	_rebuild_preview_image()
 	if preview_texture_rid.is_valid():

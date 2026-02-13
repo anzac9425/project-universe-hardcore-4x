@@ -45,12 +45,12 @@ static func create(bp, pos: Vector2, faction: int) -> ShipInstance:
 	return inst
 
 func _init_hp() -> void:
-	var w := blueprint.width
-	var h := blueprint.height
+	var w: int = int(blueprint.width)
+	var h: int = int(blueprint.height)
 	hp_data.resize(w * h)
 
 	# 이중 루프 대신 직접 오프셋 계산으로 최적화
-	var stride := w * CellDefs.BYTES_PER_CELL
+	var stride: int = w * CellDefs.BYTES_PER_CELL
 	for y in range(h):
 		var row_base := y * stride
 		for x in range(w):
