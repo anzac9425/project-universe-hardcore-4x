@@ -107,15 +107,15 @@ func _rebuild_preview_image() -> void:
 func auto_flag_exterior() -> void:
 	if current_blueprint == null:
 		return
-	var dirs := [Vector2i(1,0), Vector2i(-1,0), Vector2i(0,1), Vector2i(0,-1)]
+	var dirs: Array[Vector2i] = [Vector2i(1,0), Vector2i(-1,0), Vector2i(0,1), Vector2i(0,-1)]
 	for y in range(current_blueprint.height):
 		for x in range(current_blueprint.width):
 			if not current_blueprint.is_occupied(x, y):
 				continue
 			var is_ext := false
-			for d in dirs:
-				var nx := x + d.x
-				var ny := y + d.y
+			for d: Vector2i in dirs:
+				var nx: int = x + d.x
+				var ny: int = y + d.y
 				if not current_blueprint.in_bounds(nx, ny) or not current_blueprint.is_occupied(nx, ny):
 					is_ext = true
 					break

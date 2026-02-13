@@ -1,6 +1,6 @@
 [gd_scene format=3 uid="uid://dmtkfcwp0mcle" load_steps=2]
 
-[ext_resource type="Script" uid="uid://sah2j0usgnjk" path="res://editor/blueprint_editor.gd" id="1_xnuo3"]
+[ext_resource type="Script" path="res://editor/blueprint_editor.gd" id="1_bpedit"]
 
 [node name="BlueprintEditor" type="Node2D" unique_id=1271413052]
-script = ExtResource("1_xnuo3")
+script = ExtResource("1_bpedit")
