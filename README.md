@@ -1,7 +1,7 @@
 # Project Workflow
 
 ## Current Version
-- `0.0.006-dev`
+- `0.0.007-dev`
 
 ## Version History (Canonical Location)
 - Record per-version changes in this README `Version History` table.
@@ -11,12 +11,18 @@
 
 | Version | Date | Summary |
 |---|---|---|
+| 0.0.007-dev | 2026-02-13 | Added rule to always include a brief change summary with each update/PR. |
 | 0.0.006-dev | 2026-02-13 | Started map-first implementation (chunked PackedByteArray world, Ingame map bootstrap, streaming scaffold). |
 | 0.0.005-dev | 2026-02-13 | Resolved PackedByteArray serialization issues by storing raw PackedByteArray in Blueprint dictionaries and keeping base64 backward compatibility. |
 | 0.0.004-dev | 2026-02-13 | Fixed parser/type inference errors (`hex_decode` call, implicit width/height/stride typing) in Blueprint, ShipInstance, BlueprintEditor, and BlueprintStats. |
 | 0.0.003-dev | 2026-02-13 | Fixed cross-script type-resolution issues (`Blueprint`/`BlueprintStats`) by reducing fragile direct type coupling and adding preload-based construction where needed. |
 | 0.0.002-dev | 2026-02-13 | Unified all script paths under `skripts/` and updated scene/script links. |
 | 0.0.001-dev | 2026-02-13 | Introduced Blueprint core structure, fixed scene flow/type inference issues, and removed tempf artifacts. |
+
+
+## Change Summary Rule
+- Every update must include a brief summary of what changed.
+- Keep it concise and practical (what changed + why).
 
 ## Script Location Rule (Important)
 - All scripts must live under `skripts/`.
