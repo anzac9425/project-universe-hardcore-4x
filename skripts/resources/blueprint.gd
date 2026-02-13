@@ -108,7 +108,7 @@ func serialize() -> Dictionary:
 		"name":          blueprint_name,
 		"width":         width,
 		"height":        height,
-		"cell_data_b64": Marshalls.raw_to_base64(cell_data),
+		"cell_data":     cell_data,
 		"module_map":    module_map,
 		"next_slot_id":  _next_slot_id,
 	}
@@ -118,7 +118,12 @@ static func deserialize(data: Dictionary):
 	bp.blueprint_name = data.get("name", "Unnamed")
 	bp.width          = data.get("width", 64)
 	bp.height         = data.get("height", 64)
-	bp.cell_data      = Marshalls.base64_to_raw(data.get("cell_data_b64", ""))
+	var raw_cell_data = data.get("cell_data", PackedByteArray())
+	if raw_cell_data is PackedByteArray:
+		bp.cell_data = raw_cell_data
+	else:
+		# backward compatibility for old saves using base64 string
+		bp.cell_data = Marshalls.base64_to_raw(str(data.get("cell_data_b64", "")))
 	bp.module_map     = data.get("module_map", {})
 	bp._next_slot_id  = data.get("next_slot_id", 1)
 	return bp
