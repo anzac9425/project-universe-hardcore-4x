@@ -1,0 +1,14 @@
+[remap]
+
+importer="glsl"
+type="RDShaderFile"
+uid="uid://dd2p3s3fc2ehd"
+path="res://.godot/imported/cell_damage.glsl-d989bb4acd5d8b05112b22ba6fb279dd.res"
+
+[deps]
+
+source_file="res://tempf/cell_damage.glsl"
+dest_files=["res://.godot/imported/cell_damage.glsl-d989bb4acd5d8b05112b22ba6fb279dd.res"]
+
+[params]
+

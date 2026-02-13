@@ -5,6 +5,6 @@
 [node name="Main" type="Node2D" unique_id=1094574164]
 script = ExtResource("1_78s5d")
 
-[node name="ActveiScene" type="Node" parent="." unique_id=1976223613]
+[node name="ActiveScene" type="Node" parent="." unique_id=1976223613]
 
-[node name="GlobalUI" type="CanvasLayer" parent="." unique_id=731685891]
+[node name="UI_Overlay" type="CanvasLayer" parent="." unique_id=731685891]
