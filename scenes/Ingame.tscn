@@ -7,4 +7,9 @@ script = ExtResource("1_ingame")
 
 [node name="Renderer" type="Node2D" parent="." unique_id=1305321752]
 
+[node name="MapCamera" type="Camera2D" parent="." unique_id=2201467001]
+position_smoothing_enabled = true
+position_smoothing_speed = 8.0
+zoom = Vector2(0.6, 0.6)
+
 [node name="InGameUI" type="CanvasLayer" parent="." unique_id=1107945474]
