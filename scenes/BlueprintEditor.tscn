@@ -1,4 +1,4 @@
-[gd_scene format=3 uid="uid://dmtkfcwp0mcle"]
+[gd_scene format=3 uid="uid://dmtkfcwp0mcle" load_steps=2]
 
 [ext_resource type="Script" uid="uid://sah2j0usgnjk" path="res://editor/blueprint_editor.gd" id="1_xnuo3"]
 
