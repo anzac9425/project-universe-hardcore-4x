@@ -1,7 +1,7 @@
 # Project Workflow
 
 ## Current Version
-- `0.0.001-dev` (last explicit version marker: commit `6564325` message `a0.0.001`)
+- `0.0.001-dev`
 
 ## Commit Rule (Important)
 - Every commit must update this README version section.
@@ -16,5 +16,3 @@
 cd /storage/emulated/0/Documents/alpha
 git pull --rebase
 git add . && git commit -m "작업 내용" && git push
-
-a0.0.003
