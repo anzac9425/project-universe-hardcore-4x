@@ -46,19 +46,21 @@ func paint_cell(x: int, y: int) -> void:
 func erase_cell(x: int, y: int) -> void:
 	if current_blueprint == null:
 		return
+	var half := brush_size >> 1
 	for dy in range(brush_size):
 		for dx in range(brush_size):
-			var cx := x + dx - brush_size / 2
-			var cy := y + dy - brush_size / 2
+			var cx := x + dx - half
+			var cy := y + dy - half
 			if current_blueprint.in_bounds(cx, cy):
 				current_blueprint.clear_cell(cx, cy)
 	texture_dirty = true
 
 func _paint_region(cx: int, cy: int, size: int) -> void:
+	var half := size >> 1
 	for dy in range(size):
 		for dx in range(size):
-			var px := cx + dx - size / 2
-			var py := cy + dy - size / 2
+			var px := cx + dx - half
+			var py := cy + dy - half
 			if not current_blueprint.in_bounds(px, py):
 				continue
 			var flags := CellDefs.FLAG_OCCUPIED
