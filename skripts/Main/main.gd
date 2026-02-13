@@ -1,7 +1,8 @@
-extends Node
+extends Node2D
 
-@onready var scene_container = $SceneContainer
+@onready var active_scene: Node = $ActiveScene
 
-func _ready():
-	SceneManager.initialize($SceneContainer)
-	SceneManager.change_scene("res://scenes/main_scene.tscn")
+func _ready() -> void:
+	MaterialData.register_defaults()
+	SceneManager.initialize(active_scene)
+	SceneManager.change_scene("res://scenes/MainMenu.tscn")
