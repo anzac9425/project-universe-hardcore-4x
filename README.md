@@ -1,7 +1,7 @@
 # Project Workflow
 
 ## Current Version
-- `0.0.002-dev`
+- `0.0.003-dev`
 
 ## Version History (표기 위치)
 - 버전별 변경사항은 **이 README의 `Version History` 표**에 기록한다.
@@ -26,6 +26,5 @@
 ```bash
 cd /storage/emulated/0/Documents/alpha
 git pull --rebase
-git add . && git commit -m "작업 내용"
-git push
+git add . && git commit -m "작업 내용" && git push
 ```
