@@ -1,6 +1,9 @@
-[gd_scene format=3 uid="uid://dupk85xbdfs4o"]
+[gd_scene format=3 uid="uid://dupk85xbdfs4o" load_steps=2]
+
+[ext_resource type="Script" path="res://skripts/Ingame/ingame.gd" id="1_ingame"]
 
 [node name="Ingame" type="Node2D" unique_id=1589196222]
+script = ExtResource("1_ingame")
 
 [node name="Renderer" type="Node2D" parent="." unique_id=1305321752]
 
