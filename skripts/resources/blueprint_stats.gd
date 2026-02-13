@@ -28,7 +28,7 @@ extends Resource
 @export var module_count: Dictionary = {}
 
 # ── 산출 로직 ─────────────────────────────────────────────
-func calculate(bp: Blueprint) -> void:
+func calculate(bp) -> void:
 	_reset()
 
 	var mass_sum := 0.0
@@ -93,14 +93,14 @@ func _base_hp_for_material(mat: int) -> int:
 func _density_for_material(mat: int) -> float:
 	return MaterialData.get_density(mat)
 
-func _material_build_weight(bp: Blueprint) -> float:
+func _material_build_weight(_bp) -> float:
 	var w := 0.0
 	for mat in material_cost:
 		var d := MaterialData.get_data(mat)
 		w += material_cost[mat] * (d.build_weight if d else 1.0)
 	return w
 
-func _count_perimeter_cells(bp: Blueprint) -> int:
+func _count_perimeter_cells(bp) -> int:
 	# 점유 셀 중 상하좌우에 빈 셀이 하나라도 있는 셀 = 외장 셀
 	# 핫패스 최적화: 임시 배열/메서드 호출 최소화
 	var count := 0

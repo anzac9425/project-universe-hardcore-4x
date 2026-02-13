@@ -6,8 +6,10 @@
 class_name BlueprintEditor
 extends Node2D
 
+const BlueprintScript = preload("res://skripts/resources/blueprint.gd")
+
 # ── 현재 편집 중인 Blueprint ──────────────────────────────
-var current_blueprint: Blueprint = null
+var current_blueprint = null
 
 # ── 에디터 상태 ───────────────────────────────────────────
 var selected_material: int  = CellDefs.MATERIAL_STEEL
@@ -28,11 +30,11 @@ const CRITICAL_OVERLAY_COLOR := Color(1.0, 0.2,  0.2, 0.4)
 
 # ── 초기화 ────────────────────────────────────────────────
 func new_blueprint(w: int, h: int) -> void:
-	current_blueprint = Blueprint.new()
+	current_blueprint = BlueprintScript.new()
 	current_blueprint.init_empty(w, h)
 	_init_preview_texture()
 
-func load_blueprint(bp: Blueprint) -> void:
+func load_blueprint(bp) -> void:
 	current_blueprint = bp
 	_init_preview_texture()
 
@@ -128,7 +130,7 @@ func auto_flag_exterior() -> void:
 			current_blueprint.cell_data[idx] = flags
 
 # ── 설계 확정 ─────────────────────────────────────────────
-func bake() -> BlueprintStats:
+func bake() -> Resource:
 	if current_blueprint == null:
 		return null
 	auto_flag_exterior()

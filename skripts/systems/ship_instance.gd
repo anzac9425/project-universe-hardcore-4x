@@ -7,8 +7,8 @@ class_name ShipInstance
 extends RefCounted
 
 # ── Blueprint 참조 (Read-Only) ────────────────────────────
-var blueprint: Blueprint = null
-var stats: BlueprintStats = null  # blueprint.cached_stats 단축 참조
+var blueprint = null
+var stats: Resource = null  # blueprint.cached_stats 단축 참조
 
 # ── 런타임 상태 ───────────────────────────────────────────
 # 셀별 현재 내구도. 크기 = width * height (셀당 1바이트, 0~255)
@@ -33,7 +33,7 @@ var faction_id:  int = 0
 var canvas_item_rid: RID = RID()
 
 # ── 생성 ──────────────────────────────────────────────────
-static func create(bp: Blueprint, pos: Vector2, faction: int) -> ShipInstance:
+static func create(bp, pos: Vector2, faction: int) -> ShipInstance:
 	assert(bp.cached_stats != null, "Blueprint must be baked before instantiation")
 	var inst          := ShipInstance.new()
 	inst.blueprint    = bp

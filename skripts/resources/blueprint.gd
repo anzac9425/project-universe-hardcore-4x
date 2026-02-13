@@ -6,6 +6,8 @@
 class_name Blueprint
 extends Resource
 
+const BlueprintStatsScript = preload("res://skripts/resources/blueprint_stats.gd")
+
 # ── 기본 메타데이터 ────────────────────────────────────────
 @export var blueprint_name: String = "Unnamed"
 @export var width: int = 64
@@ -24,7 +26,7 @@ extends Resource
 var _next_slot_id: int = 1
 
 # ── 자동 산출 스탯 (설계 확정 시 캐싱) ────────────────────
-@export var cached_stats: BlueprintStats = null
+@export var cached_stats: Resource = null
 
 # ── 초기화 ────────────────────────────────────────────────
 func init_empty(w: int, h: int) -> void:
@@ -94,8 +96,8 @@ func remove_module(slot_id: int) -> void:
 	module_map.erase(slot_id)
 
 # ── 스탯 산출 (설계 확정 시 호출) ─────────────────────────
-func bake_stats() -> BlueprintStats:
-	cached_stats = BlueprintStats.new()
+func bake_stats() -> Resource:
+	cached_stats = BlueprintStatsScript.new()
 	cached_stats.calculate(self)
 	return cached_stats
 
@@ -111,7 +113,7 @@ func serialize() -> Dictionary:
 		"next_slot_id":  _next_slot_id,
 	}
 
-static func deserialize(data: Dictionary) -> Blueprint:
+static func deserialize(data: Dictionary):
 	var bp := Blueprint.new()
 	bp.blueprint_name = data.get("name", "Unnamed")
 	bp.width          = data.get("width", 64)
