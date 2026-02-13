@@ -6,8 +6,10 @@
 class_name BlueprintEditor
 extends Node2D
 
+const BlueprintScript = preload("res://skripts/resources/blueprint.gd")
+
 # ── 현재 편집 중인 Blueprint ──────────────────────────────
-var current_blueprint: Blueprint = null
+var current_blueprint = null
 
 # ── 에디터 상태 ───────────────────────────────────────────
 var selected_material: int  = CellDefs.MATERIAL_STEEL
@@ -28,11 +30,11 @@ const CRITICAL_OVERLAY_COLOR := Color(1.0, 0.2,  0.2, 0.4)
 
 # ── 초기화 ────────────────────────────────────────────────
 func new_blueprint(w: int, h: int) -> void:
-	current_blueprint = Blueprint.new()
+	current_blueprint = BlueprintScript.new()
 	current_blueprint.init_empty(w, h)
 	_init_preview_texture()
 
-func load_blueprint(bp: Blueprint) -> void:
+func load_blueprint(bp) -> void:
 	current_blueprint = bp
 	_init_preview_texture()
 
@@ -46,19 +48,21 @@ func paint_cell(x: int, y: int) -> void:
 func erase_cell(x: int, y: int) -> void:
 	if current_blueprint == null:
 		return
+	var half := brush_size >> 1
 	for dy in range(brush_size):
 		for dx in range(brush_size):
-			var cx := x + dx - brush_size / 2
-			var cy := y + dy - brush_size / 2
+			var cx := x + dx - half
+			var cy := y + dy - half
 			if current_blueprint.in_bounds(cx, cy):
 				current_blueprint.clear_cell(cx, cy)
 	texture_dirty = true
 
 func _paint_region(cx: int, cy: int, size: int) -> void:
+	var half := size >> 1
 	for dy in range(size):
 		for dx in range(size):
-			var px := cx + dx - size / 2
-			var py := cy + dy - size / 2
+			var px := cx + dx - half
+			var py := cy + dy - half
 			if not current_blueprint.in_bounds(px, py):
 				continue
 			var flags := CellDefs.FLAG_OCCUPIED
@@ -105,15 +109,15 @@ func _rebuild_preview_image() -> void:
 func auto_flag_exterior() -> void:
 	if current_blueprint == null:
 		return
-	var dirs := [Vector2i(1,0), Vector2i(-1,0), Vector2i(0,1), Vector2i(0,-1)]
+	var dirs: Array[Vector2i] = [Vector2i(1,0), Vector2i(-1,0), Vector2i(0,1), Vector2i(0,-1)]
 	for y in range(current_blueprint.height):
 		for x in range(current_blueprint.width):
 			if not current_blueprint.is_occupied(x, y):
 				continue
 			var is_ext := false
-			for d in dirs:
-				var nx := x + d.x
-				var ny := y + d.y
+			for d: Vector2i in dirs:
+				var nx: int = x + d.x
+				var ny: int = y + d.y
 				if not current_blueprint.in_bounds(nx, ny) or not current_blueprint.is_occupied(nx, ny):
 					is_ext = true
 					break
@@ -126,7 +130,7 @@ func auto_flag_exterior() -> void:
 			current_blueprint.cell_data[idx] = flags
 
 # ── 설계 확정 ─────────────────────────────────────────────
-func bake() -> BlueprintStats:
+func bake() -> Resource:
 	if current_blueprint == null:
 		return null
 	auto_flag_exterior()

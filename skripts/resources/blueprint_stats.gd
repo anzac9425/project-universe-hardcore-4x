@@ -28,7 +28,7 @@ extends Resource
 @export var module_count: Dictionary = {}
 
 # ── 산출 로직 ─────────────────────────────────────────────
-func calculate(bp: Blueprint) -> void:
+func calculate(bp) -> void:
 	_reset()
 
 	var mass_sum := 0.0
@@ -93,25 +93,32 @@ func _base_hp_for_material(mat: int) -> int:
 func _density_for_material(mat: int) -> float:
 	return MaterialData.get_density(mat)
 
-func _material_build_weight(bp: Blueprint) -> float:
+func _material_build_weight(_bp) -> float:
 	var w := 0.0
 	for mat in material_cost:
 		var d := MaterialData.get_data(mat)
 		w += material_cost[mat] * (d.build_weight if d else 1.0)
 	return w
 
-func _count_perimeter_cells(bp: Blueprint) -> int:
+func _count_perimeter_cells(bp) -> int:
 	# 점유 셀 중 상하좌우에 빈 셀이 하나라도 있는 셀 = 외장 셀
+	# 핫패스 최적화: 임시 배열/메서드 호출 최소화
 	var count := 0
-	var dirs  := [Vector2i(1,0), Vector2i(-1,0), Vector2i(0,1), Vector2i(0,-1)]
-	for y in range(bp.height):
-		for x in range(bp.width):
+	var w := bp.width
+	var h := bp.height
+	for y in range(h):
+		for x in range(w):
 			if not bp.is_occupied(x, y):
 				continue
-			for d in dirs:
-				var nx := x + d.x
-				var ny := y + d.y
-				if not bp.in_bounds(nx, ny) or not bp.is_occupied(nx, ny):
-					count += 1
-					break
+			if x == 0 or not bp.is_occupied(x - 1, y):
+				count += 1
+				continue
+			if x == w - 1 or not bp.is_occupied(x + 1, y):
+				count += 1
+				continue
+			if y == 0 or not bp.is_occupied(x, y - 1):
+				count += 1
+				continue
+			if y == h - 1 or not bp.is_occupied(x, y + 1):
+				count += 1
 	return count

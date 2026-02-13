@@ -7,8 +7,8 @@ class_name ShipInstance
 extends RefCounted
 
 # ── Blueprint 참조 (Read-Only) ────────────────────────────
-var blueprint: Blueprint = null
-var stats: BlueprintStats = null  # blueprint.cached_stats 단축 참조
+var blueprint = null
+var stats: Resource = null  # blueprint.cached_stats 단축 참조
 
 # ── 런타임 상태 ───────────────────────────────────────────
 # 셀별 현재 내구도. 크기 = width * height (셀당 1바이트, 0~255)
@@ -16,7 +16,7 @@ var stats: BlueprintStats = null  # blueprint.cached_stats 단축 참조
 var hp_data: PackedByteArray = PackedByteArray()
 
 # CRITICAL 셀 위치 캐시 - is_destroyed() 호출마다 전체 순회 방지
-var _critical_cells: Array[Vector2i] = []
+var _critical_cell_count: int = 0
 var _alive_critical_count: int = 0
 
 # 물리 상태
@@ -33,7 +33,7 @@ var faction_id:  int = 0
 var canvas_item_rid: RID = RID()
 
 # ── 생성 ──────────────────────────────────────────────────
-static func create(bp: Blueprint, pos: Vector2, faction: int) -> ShipInstance:
+static func create(bp, pos: Vector2, faction: int) -> ShipInstance:
 	assert(bp.cached_stats != null, "Blueprint must be baked before instantiation")
 	var inst          := ShipInstance.new()
 	inst.blueprint    = bp
@@ -59,11 +59,10 @@ func _init_hp() -> void:
 			var flags := blueprint.cell_data[base + CellDefs.BYTE_FLAGS]
 			hp_data[y * w + x] = hp_r
 
-			# CRITICAL 셀 캐싱
 			if flags & CellDefs.FLAG_CRITICAL:
-				_critical_cells.append(Vector2i(x, y))
+				_critical_cell_count += 1
 
-	_alive_critical_count = _critical_cells.size()
+	_alive_critical_count = _critical_cell_count
 
 # ── HP 접근 ───────────────────────────────────────────────
 func get_cell_hp(x: int, y: int) -> int:
@@ -123,7 +122,7 @@ func apply_hit(hit_x: int, hit_y: int, damage: int, penetration: int, angle_deg:
 
 		if new_hp == 0:
 			result.destroyed_cells.append(Vector2i(cx, cy))
-			# _critical_cells 캐시로 조회 - blueprint 재접근 없음
+			# 캐시된 CRITICAL 카운터 갱신 (추가 순회 없음)
 			if flags & CellDefs.FLAG_CRITICAL:
 				result.critical_hit   = true
 				_alive_critical_count = maxi(0, _alive_critical_count - 1)
@@ -168,7 +167,7 @@ func apply_impulse(impulse: Vector2, offset: Vector2 = Vector2.ZERO) -> void:
 
 # ── 생존 여부 (캐시 기반 - O(1)) ─────────────────────────
 func is_destroyed() -> bool:
-	if _critical_cells.is_empty():
+	if _critical_cell_count == 0:
 		return false  # CRITICAL 셀이 없으면 파괴 불가
 	return _alive_critical_count <= 0
 
