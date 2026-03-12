@@ -19,6 +19,7 @@ config/icon="res://icon.svg"
 
 LogManager="*uid://ubucaygb2k1n"
 SceneManager="*uid://s1vpt0pxayws"
+GameSession="*uid://bm85k4kag47cg"
 
 [display]
 

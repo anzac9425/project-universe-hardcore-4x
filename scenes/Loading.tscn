@@ -1,0 +1,12 @@
+[gd_scene format=3 uid="uid://dnigedbebmena"]
+
+[ext_resource type="Script" uid="uid://e1cb8sqr53qr" path="res://skripts/scenes/Loading/loading.gd" id="1_5d8b5"]
+
+[node name="Loading" type="Node2D" unique_id=27600722]
+script = ExtResource("1_5d8b5")
+
+[node name="ProgressBar" type="ProgressBar" parent="." unique_id=1167858275]
+offset_left = 757.0
+offset_top = 371.0
+offset_right = 1158.0
+offset_bottom = 630.0

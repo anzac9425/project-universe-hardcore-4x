@@ -1,15 +1,25 @@
-[gd_scene format=3 uid="uid://dupk85xbdfs4o" load_steps=2]
+[gd_scene format=3 uid="uid://dupk85xbdfs4o"]
 
-[ext_resource type="Script" path="res://skripts/Ingame/ingame.gd" id="1_ingame"]
+[ext_resource type="Script" uid="uid://ctqmv14jc5m3w" path="res://skripts/scenes/Ingame/ingame.gd" id="1_ingame"]
+[ext_resource type="Script" uid="uid://cjbqgadj6jh7w" path="res://skripts/scenes/Ingame/map_camera.gd" id="2_5fjqs"]
+[ext_resource type="Texture2D" uid="uid://b4hx6rnxyryah" path="res://icon.svg" id="2_swf2s"]
 
 [node name="Ingame" type="Node2D" unique_id=1589196222]
 script = ExtResource("1_ingame")
 
+[node name="Simulation" type="Node2D" parent="." unique_id=1528794672]
+
 [node name="Renderer" type="Node2D" parent="." unique_id=1305321752]
 
-[node name="MapCamera" type="Camera2D" parent="." unique_id=2201467001]
-position_smoothing_enabled = true
-position_smoothing_speed = 8.0
-zoom = Vector2(0.6, 0.6)
+[node name="Sprite2D" type="Sprite2D" parent="Renderer" unique_id=1201995031]
+texture = ExtResource("2_swf2s")
 
 [node name="InGameUI" type="CanvasLayer" parent="." unique_id=1107945474]
+
+[node name="MapCamera" type="Node2D" parent="." unique_id=2040219045]
+script = ExtResource("2_5fjqs")
+
+[node name="Camera2D" type="Camera2D" parent="MapCamera" unique_id=1412926964]
+zoom = Vector2(0.6, 0.6)
+position_smoothing_enabled = true
+position_smoothing_speed = 8.0
