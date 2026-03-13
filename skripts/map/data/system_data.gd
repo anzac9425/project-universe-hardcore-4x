@@ -1,7 +1,7 @@
 extends Resource
 class_name SystemData
 
-var seed: int
+var system_seed: int
 var position: Vector2
 
 var generated := false

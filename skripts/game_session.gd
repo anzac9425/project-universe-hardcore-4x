@@ -42,7 +42,7 @@ func start_new_game(new_config:GameConfig):
 func _generate_galaxy():
 
 	galaxy = MapGenerator.generate_galaxy(
-		config.seed,
+		config.world_seed,
 		config.system_count,
 		config.min_system_distance,
 		config.galaxy_radius
@@ -71,7 +71,7 @@ func get_random_system() -> SystemData:
 		return null
 
 	var rng := RandomNumberGenerator.new()
-	rng.seed = config.seed
+	rng.seed = config.world_seed
 
 	var index = rng.randi_range(0, galaxy.systems.size()-1)
 
