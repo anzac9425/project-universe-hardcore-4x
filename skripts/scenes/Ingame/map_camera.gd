@@ -2,11 +2,11 @@ extends Node2D
 
 @onready var camera: Camera2D = $Camera2D
 
-@export var move_speed := 1200.0
+@export var move_speed := 2000.0
 @export var zoom_speed := 0.1
 
 @export var min_zoom := 0.2
-@export var max_zoom := 4.0
+@export var max_zoom := 4
 
 @export var smoothing := 100.0
 
