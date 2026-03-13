@@ -7,7 +7,7 @@ var system_count = 100
 var difficulty = "EASY"
 
 func _on_start_button_pressed() -> void:
-	SceneManager.change_scene(START_SCENE_PATH)
+	SceneManager.change_scene_with_loading(START_SCENE_PATH)
 	var config = GameConfig.new()
 
 	config.seed = seed
