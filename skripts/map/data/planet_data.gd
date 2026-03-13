@@ -10,7 +10,7 @@ enum PlanetType {
 	LAVA
 }
 
-var seed: int
+var planet_seed: int
 var type: PlanetType
 var orbit_radius: float
 var orbit_angle: float

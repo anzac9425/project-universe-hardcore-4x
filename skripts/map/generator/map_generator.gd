@@ -16,7 +16,7 @@ static func _roll_star_count(rng:RandomNumberGenerator) -> int:
 	else:
 		return 3
 		
-static func _roll_star_type(rng:RandomNumberGenerator) -> int:
+static func _roll_star_type(rng:RandomNumberGenerator) -> StarData.StarType:
 
 	var r = rng.randf()
 
@@ -35,7 +35,7 @@ static func _roll_star_type(rng:RandomNumberGenerator) -> int:
 	else:
 		return StarData.StarType.M
 		
-static func _roll_planet_type(rng:RandomNumberGenerator) -> int:
+static func _roll_planet_type(rng:RandomNumberGenerator) -> PlanetData.PlanetType:
 
 	var r = rng.randf()
 
@@ -53,17 +53,17 @@ static func _roll_planet_type(rng:RandomNumberGenerator) -> int:
 		return PlanetData.PlanetType.LAVA
 	
 static func generate_galaxy(
-	seed:int,
+	galaxy_seed:int,
 	system_count:int,
 	min_distance:float,
 	radius:float
 ) -> GalaxyData:
 
 	var rng := RandomNumberGenerator.new()
-	rng.seed = seed
+	rng.seed = galaxy_seed
 
 	var galaxy := GalaxyData.new()
-	galaxy.seed = seed
+	galaxy.galaxy_seed = galaxy_seed
 
 	var positions = _generate_system_positions(
 		rng,
@@ -77,7 +77,7 @@ static func generate_galaxy(
 		var system := SystemData.new()
 
 		system.position = positions[i]
-		system.seed = derive_seed(seed, i)
+		system.system_seed = derive_seed(galaxy_seed, i)
 
 		galaxy.systems.append(system)
 
@@ -89,30 +89,30 @@ static func generate_system(system:SystemData) -> void:
 		return
 
 	var rng := RandomNumberGenerator.new()
-	rng.seed = system.seed
+	rng.seed = system.system_seed
 
 	var star_count = _roll_star_count(rng)
 
 	for i in star_count:
 
-		var star_seed = derive_seed(system.seed, i)
+		var star_seed = derive_seed(system.system_seed, i)
 
 		system.stars.append(
 			_generate_star(star_seed, i)
 		)
 
-	system.planets = _generate_planets(system.seed)
+	system.planets = _generate_planets(system.system_seed)
 
 	system.generated = true
 	
-static func _generate_star(seed:int, index:int) -> StarData:
+static func _generate_star(star_seed:int, _index:int) -> StarData:
 
 	var rng := RandomNumberGenerator.new()
-	rng.seed = seed
+	rng.seed = star_seed
 
 	var star := StarData.new()
 
-	star.type = _roll_star_type(rng)
+	star.type = _roll_star_type(rng) as StarData.StarType
 
 	match star.type:
 
@@ -151,12 +151,12 @@ static func _generate_star(seed:int, index:int) -> StarData:
 
 	return star
 	
-static func _generate_planets(system_seed:int) -> Array:
+static func _generate_planets(system_seed:int) -> Array[PlanetData]:
 
 	var rng := RandomNumberGenerator.new()
 	rng.seed = derive_seed(system_seed, 999)
 
-	var planets:Array = []
+	var planets: Array[PlanetData] = []
 
 	var orbit := 200.0
 
@@ -166,7 +166,7 @@ static func _generate_planets(system_seed:int) -> Array:
 
 		var planet := PlanetData.new()
 
-		planet.seed = derive_seed(system_seed, 1000 + i)
+		planet.planet_seed = derive_seed(system_seed, 1000 + i)
 
 		orbit += rng.randf_range(120,300)
 
@@ -174,7 +174,7 @@ static func _generate_planets(system_seed:int) -> Array:
 
 		planet.size = rng.randf_range(20,80)
 
-		planet.type = _roll_planet_type(rng)
+		planet.type = _roll_planet_type(rng) as PlanetData.PlanetType
 
 		planets.append(planet)
 

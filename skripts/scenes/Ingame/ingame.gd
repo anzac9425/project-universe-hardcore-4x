@@ -6,5 +6,7 @@ func _ready():
 		return
 
 	var system = GameSession.get_random_system()
+	if system == null:
+		return
 
 	GameSession.enter_system(system)

@@ -11,7 +11,7 @@ var version: float = 0.0
 # =========================
 # Core
 # =========================
-var seed: int
+var world_seed: int
 var game_mode: int
 var difficulty: int
 
@@ -36,7 +36,7 @@ var starting_resources: int
 # =========================
 func _init():
 
-	seed = Time.get_unix_time_from_system()
+	world_seed = int(Time.get_unix_time_from_system())
 
 	game_mode = GameMode.SANDBOX
 	difficulty = Difficulty.NORMAL
@@ -95,7 +95,7 @@ func apply_difficulty():
 func get_config_hash() -> int:
 
 	var data = [
-		seed,
+		world_seed,
 		game_mode,
 		difficulty,
 		system_count,
@@ -111,7 +111,7 @@ func to_dict() -> Dictionary:
 
 	return {
 		"version": version,
-		"seed": seed,
+		"seed": world_seed,
 		"game_mode": game_mode,
 		"difficulty": difficulty,
 		"system_count": system_count,
@@ -125,7 +125,7 @@ func from_dict(data:Dictionary):
 
 	version = data.get("version", 1)
 
-	seed = data.get("seed", 0)
+	world_seed = int(data.get("seed", 0))
 	game_mode = data.get("game_mode", 0)
 	difficulty = data.get("difficulty", 1)
 

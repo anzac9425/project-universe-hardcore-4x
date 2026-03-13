@@ -2,19 +2,17 @@ extends Node2D
 
 const START_SCENE_PATH := "res://scenes/Ingame.tscn"
 
-var seed = 1
-var system_count = 100
-var difficulty = "EASY"
+@export var start_seed := 1
+@export var system_count := 100
+@export var difficulty: int = GameConfig.Difficulty.EASY
 
 func _on_start_button_pressed() -> void:
-	SceneManager.change_scene_with_loading(START_SCENE_PATH)
 	var config = GameConfig.new()
 
-	config.seed = seed
+	config.world_seed = start_seed
 	config.system_count = system_count
 	config.difficulty = difficulty
 
-	config.apply_difficulty()
-	config.validate()
+	GameSession.start_new_game(config)
 
-	#GameSession.config = config
+	SceneManager.change_scene_with_loading(START_SCENE_PATH)

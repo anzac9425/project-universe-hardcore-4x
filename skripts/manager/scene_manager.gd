@@ -28,13 +28,13 @@ func change_scene(path: String) -> void:
 		return
 
 	if not ResourceLoader.exists(path):
-		push_error(tr(ERR_SCENE_NOT_EXISTS) % path)
+		push_error("%s: %s" % [tr(ERR_SCENE_NOT_EXISTS), path])
 		return
 
 	var packed: PackedScene = load(path)
 
 	if packed == null:
-		push_error(tr(ERR_LOAD_FAILED) % path)
+		push_error("%s: %s" % [tr(ERR_LOAD_FAILED), path])
 		return
 
 	_replace_scene_packed(packed)
@@ -50,7 +50,7 @@ func change_scene_with_loading(path: String) -> void:
 		return
 
 	if not ResourceLoader.exists(path):
-		push_error(tr(ERR_SCENE_NOT_EXISTS) % path)
+		push_error("%s: %s" % [tr(ERR_SCENE_NOT_EXISTS), path])
 		return
 
 	target_scene_path = path
@@ -60,7 +60,8 @@ func change_scene_with_loading(path: String) -> void:
 	var packed: PackedScene = load(LOADING_SCENE_PATH)
 
 	if packed == null:
-		push_error(tr(ERR_LOAD_FAILED) % LOADING_SCENE_PATH)
+		is_loading = false
+		push_error("%s: %s" % [tr(ERR_LOAD_FAILED), LOADING_SCENE_PATH])
 		return
 
 	_replace_scene_packed(packed)
@@ -86,6 +87,11 @@ func _replace_scene_packed(packed: PackedScene) -> void:
 # LoadingScene이 호출
 # -----------------------------
 func finish_loading(packed: PackedScene) -> void:
+
+	if packed == null:
+		is_loading = false
+		push_error("%s: %s" % [tr(ERR_LOAD_FAILED), target_scene_path])
+		return
 
 	is_loading = false
 	loading_progress = 1.0
