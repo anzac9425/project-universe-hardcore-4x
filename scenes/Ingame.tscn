@@ -1,23 +1,25 @@
 [gd_scene format=3 uid="uid://dupk85xbdfs4o"]
 
 [ext_resource type="Script" uid="uid://ctqmv14jc5m3w" path="res://skripts/scenes/Ingame/ingame.gd" id="1_ingame"]
-[ext_resource type="Script" uid="uid://cjbqgadj6jh7w" path="res://skripts/scenes/Ingame/map_camera.gd" id="2_5fjqs"]
-[ext_resource type="Texture2D" uid="uid://b4hx6rnxyryah" path="res://icon.svg" id="2_swf2s"]
+[ext_resource type="Script" uid="uid://cjbqgadj6jh7w" path="res://skripts/scenes/Ingame/map_camera.gd" id="2_camera"]
+[ext_resource type="Script" path="res://skripts/renderers/planet_renderer.gd" id="3_planet_renderer"]
+[ext_resource type="Script" path="res://skripts/renderers/moon_renderer.gd" id="4_moon_renderer"]
 
 [node name="Ingame" type="Node2D" unique_id=1589196222]
 script = ExtResource("1_ingame")
 
-[node name="Simulation" type="Node2D" parent="." unique_id=1528794672]
+[node name="SystemView" type="Node2D" parent="." unique_id=1981110001]
 
-[node name="Renderer" type="Node2D" parent="." unique_id=1305321752]
+[node name="Stars" type="Node2D" parent="SystemView" unique_id=1981110002]
 
-[node name="Sprite2D" type="Sprite2D" parent="Renderer" unique_id=1201995031]
-texture = ExtResource("2_swf2s")
+[node name="PlanetRenderer" type="MultiMeshInstance2D" parent="SystemView" unique_id=1981110003]
+script = ExtResource("3_planet_renderer")
 
-[node name="InGameUI" type="CanvasLayer" parent="." unique_id=1107945474]
+[node name="MoonRenderer" type="MultiMeshInstance2D" parent="SystemView" unique_id=1981110004]
+script = ExtResource("4_moon_renderer")
 
 [node name="MapCamera" type="Node2D" parent="." unique_id=2040219045]
-script = ExtResource("2_5fjqs")
+script = ExtResource("2_camera")
 
 [node name="Camera2D" type="Camera2D" parent="MapCamera" unique_id=1412926964]
 zoom = Vector2(0.6, 0.6)
