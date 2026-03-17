@@ -1,6 +1,7 @@
 extends Node
 class_name MapGenerator
 
+
 static func derive_seed(parent:int, index:int) -> int:
 	var h = hash(str(parent) + ":" + str(index))
 	return abs(h)
@@ -93,24 +94,52 @@ static func generate_system(system:SystemData) -> void:
 
 	var star_count = _roll_star_count(rng)
 
-	for i in star_count:
-
-		var star_seed = derive_seed(system.system_seed, i)
-
-		system.stars.append(
-			_generate_star(star_seed, i)
-		)
-
+	system.stars = _generate_stars_for_system(system.system_seed, star_count)
 	system.planets = _generate_planets(system.system_seed)
 
 	system.generated = true
+
+
+static func _generate_stars_for_system(system_seed:int, star_count:int) -> Array[StarData]:
+	var stars: Array[StarData] = []
+
+	for i in star_count:
+		var star_seed = derive_seed(system_seed, i)
+		stars.append(_generate_star(star_seed))
+
+	if star_count == 1:
+		stars[0].orbit_radius = 0.0
+		stars[0].orbital_speed = 0.0
+	elif star_count == 2:
+		var binary_radius = 45.0
+		stars[0].orbit_radius = binary_radius
+		stars[1].orbit_radius = binary_radius
+		stars[0].orbit_angle = 0.0
+		stars[1].orbit_angle = PI
+		stars[0].orbital_speed = 0.12
+		stars[1].orbital_speed = 0.12
+	elif star_count == 3:
+		# Inner binary + outer companion layout for improved stability.
+		stars[0].orbit_radius = 35.0
+		stars[1].orbit_radius = 35.0
+		stars[0].orbit_angle = 0.0
+		stars[1].orbit_angle = PI
+		stars[0].orbital_speed = 0.18
+		stars[1].orbital_speed = 0.18
+
+		stars[2].orbit_radius = 120.0
+		stars[2].orbit_angle = PI * 0.6
+		stars[2].orbital_speed = 0.05
+
+	return stars
 	
-static func _generate_star(star_seed:int, _index:int) -> StarData:
+static func _generate_star(star_seed:int) -> StarData:
 
 	var rng := RandomNumberGenerator.new()
 	rng.seed = star_seed
 
 	var star := StarData.new()
+	star.seed = star_seed
 
 	star.type = _roll_star_type(rng) as StarData.StarType
 
@@ -145,9 +174,9 @@ static func _generate_star(star_seed:int, _index:int) -> StarData:
 			star.radius = rng.randf_range(0.1,0.7)
 
 	star.luminosity = pow(star.radius,2) * pow(star.temperature/5778.0,4)
-
-	star.orbit_radius = rng.randf_range(0,50)
+	star.orbit_radius = 0.0
 	star.orbit_angle = rng.randf_range(0,TAU)
+	star.orbital_speed = rng.randf_range(0.02, 0.12)
 
 	return star
 	
@@ -158,7 +187,7 @@ static func _generate_planets(system_seed:int) -> Array[PlanetData]:
 
 	var planets: Array[PlanetData] = []
 
-	var orbit := 200.0
+	var orbit := 220.0
 
 	var planet_count = rng.randi_range(0,10)
 
@@ -171,14 +200,37 @@ static func _generate_planets(system_seed:int) -> Array[PlanetData]:
 		orbit += rng.randf_range(120,300)
 
 		planet.orbit_radius = orbit
-
+		planet.orbit_angle = rng.randf_range(0, TAU)
+		planet.orbital_speed = rng.randf_range(0.01, 0.08)
 		planet.size = rng.randf_range(20,80)
 
 		planet.type = _roll_planet_type(rng) as PlanetData.PlanetType
+		planet.moons = _generate_moons(planet.planet_seed, planet.size)
 
 		planets.append(planet)
 
 	return planets
+
+
+static func _generate_moons(planet_seed:int, planet_size:float) -> Array[MoonData]:
+	var rng := RandomNumberGenerator.new()
+	rng.seed = derive_seed(planet_seed, 77)
+
+	var moon_count = rng.randi_range(0, 4)
+	var orbit = max(planet_size * 0.9, 24.0)
+	var moons: Array[MoonData] = []
+
+	for i in moon_count:
+		var moon := MoonData.new()
+		moon.moon_seed = derive_seed(planet_seed, 200 + i)
+		orbit += rng.randf_range(15.0, 40.0)
+		moon.orbit_radius = orbit
+		moon.orbit_angle = rng.randf_range(0, TAU)
+		moon.orbital_speed = rng.randf_range(0.05, 0.22)
+		moon.size = rng.randf_range(4.0, max(8.0, planet_size * 0.25))
+		moons.append(moon)
+
+	return moons
 
 static func _generate_system_positions(
 	rng:RandomNumberGenerator,
