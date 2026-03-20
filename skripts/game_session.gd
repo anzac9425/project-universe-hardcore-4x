@@ -59,6 +59,7 @@ func enter_system(system:SystemData):
 	current_system = system
 
 	MapGenerator.generate_system(system)
+	LogManager.log_system_data(system)
 
 func get_random_system() -> SystemData:
 
@@ -110,6 +111,7 @@ func load_save_data(data:Dictionary):
 	current_system = galaxy.systems[index]
 
 	MapGenerator.generate_system(current_system)
+	LogManager.log_system_data(current_system)
 
 	game_started = true
 	
