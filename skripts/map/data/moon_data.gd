@@ -1,20 +1,18 @@
 extends Resource
-class_name PlanetData
+class_name MoonData
 
-enum PlanetType {
+enum MoonType {
 	ROCKY,
 	OCEAN,
 	ICE,
-	GAS_GIANT,
-	ICE_GIANT
+	MAJOR
 }
 
-var planet_seed: int = 0
+var moon_seed: int = 0
 var name: String = ""
-var type: PlanetType = PlanetType.ROCKY
+var type: MoonType = MoonType.ROCKY
 var mass_earth: float = 0.0
 var radius_earth: float = 0.0
 var temperature_k: float = 0.0
 var composition: String = ""
 var orbit: OrbitData
-var moons: Array[MoonData] = []
