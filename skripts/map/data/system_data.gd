@@ -4,7 +4,7 @@ class_name SystemData
 var system_seed: int
 var position: Vector2
 
-var generated := false
+var generated: bool = false
 
 var stars: Array[StarData] = []
 var planets: Array[PlanetData] = []
