@@ -1,6 +1,6 @@
-[gd_scene format=3 uid="uid://dmtkfcwp0mcle" load_steps=2]
+[gd_scene format=3 uid="uid://dmtkfcwp0mcle"]
 
-[ext_resource type="Script" path="res://skripts/BlueprintEditor/blueprint_editor.gd" id="1_bpedit"]
+[sub_resource type="GDScript" id="GDScript_8avd5"]
 
 [node name="BlueprintEditor" type="Node2D" unique_id=1271413052]
-script = ExtResource("1_bpedit")
+script = SubResource("GDScript_8avd5")
