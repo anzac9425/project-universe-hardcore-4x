@@ -59,6 +59,11 @@ static func analyze_seed(
 		"moon_count": 0,
 		"belt_count": 0,
 		"habitable_candidates": 0,
+		"rocky_planets": 0,
+		"ocean_planets": 0,
+		"ice_planets": 0,
+		"gas_giants": 0,
+		"ice_giants": 0,
 		"first_star_type": StarData.StarType.G,
 		"first_star_temperature_k": 0.0,
 		"best_system_index": -1,
@@ -82,6 +87,17 @@ static func analyze_seed(
 
 		for planet in system.planets:
 			summary["moon_count"] += planet.moons.size()
+			match planet.type:
+				PlanetData.PlanetType.ROCKY:
+					summary["rocky_planets"] += 1
+				PlanetData.PlanetType.OCEAN:
+					summary["ocean_planets"] += 1
+				PlanetData.PlanetType.ICE:
+					summary["ice_planets"] += 1
+				PlanetData.PlanetType.GAS_GIANT:
+					summary["gas_giants"] += 1
+				PlanetData.PlanetType.ICE_GIANT:
+					summary["ice_giants"] += 1
 			if _is_habitable_candidate(planet):
 				system_habitable_candidates += 1
 

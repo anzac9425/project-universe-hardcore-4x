@@ -10,8 +10,8 @@ script = ExtResource("1_w2twt")
 [node name="PanelContainer" type="PanelContainer" parent="UI"]
 offset_left = 48.0
 offset_top = 48.0
-offset_right = 688.0
-offset_bottom = 620.0
+offset_right = 880.0
+offset_bottom = 940.0
 
 [node name="MarginContainer" type="MarginContainer" parent="UI/PanelContainer"]
 theme_override_constants/margin_left = 24
@@ -54,19 +54,98 @@ theme_override_constants/separation = 8
 text = "Preview"
 
 [node name="FindSeedButton" type="Button" parent="UI/PanelContainer/MarginContainer/VBoxContainer/ActionRow"]
-text = "Find Life-Friendly Seed"
+text = "Find Matching Seed"
 
 [node name="StartButton" type="Button" parent="UI/PanelContainer/MarginContainer/VBoxContainer/ActionRow" unique_id=453392988]
 text = "Start"
 
+[node name="FinderControls" type="GridContainer" parent="UI/PanelContainer/MarginContainer/VBoxContainer"]
+columns = 4
+
+[node name="SearchWindowLabel" type="Label" parent="UI/PanelContainer/MarginContainer/VBoxContainer/FinderControls"]
+text = "Search Window"
+
+[node name="SearchWindowSpinBox" type="SpinBox" parent="UI/PanelContainer/MarginContainer/VBoxContainer/FinderControls"]
+min_value = 1.0
+max_value = 4096.0
+value = 128.0
+
+[node name="StarTypeLabel" type="Label" parent="UI/PanelContainer/MarginContainer/VBoxContainer/FinderControls"]
+text = "Star Type"
+
+[node name="StarTypeOptionButton" type="OptionButton" parent="UI/PanelContainer/MarginContainer/VBoxContainer/FinderControls"]
+
+[node name="MinPlanetsLabel" type="Label" parent="UI/PanelContainer/MarginContainer/VBoxContainer/FinderControls"]
+text = "Min Planets"
+
+[node name="MinPlanetsSpinBox" type="SpinBox" parent="UI/PanelContainer/MarginContainer/VBoxContainer/FinderControls"]
+min_value = 0.0
+max_value = 128.0
+
+[node name="MinMoonsLabel" type="Label" parent="UI/PanelContainer/MarginContainer/VBoxContainer/FinderControls"]
+text = "Min Moons"
+
+[node name="MinMoonsSpinBox" type="SpinBox" parent="UI/PanelContainer/MarginContainer/VBoxContainer/FinderControls"]
+min_value = 0.0
+max_value = 512.0
+
+[node name="MinBeltsLabel" type="Label" parent="UI/PanelContainer/MarginContainer/VBoxContainer/FinderControls"]
+text = "Min Belts"
+
+[node name="MinBeltsSpinBox" type="SpinBox" parent="UI/PanelContainer/MarginContainer/VBoxContainer/FinderControls"]
+min_value = 0.0
+max_value = 64.0
+
+[node name="MinHabitableLabel" type="Label" parent="UI/PanelContainer/MarginContainer/VBoxContainer/FinderControls"]
+text = "Min Habitable"
+
+[node name="MinHabitableSpinBox" type="SpinBox" parent="UI/PanelContainer/MarginContainer/VBoxContainer/FinderControls"]
+min_value = 0.0
+max_value = 64.0
+
+[node name="MinRockyLabel" type="Label" parent="UI/PanelContainer/MarginContainer/VBoxContainer/FinderControls"]
+text = "Min Rocky"
+
+[node name="MinRockySpinBox" type="SpinBox" parent="UI/PanelContainer/MarginContainer/VBoxContainer/FinderControls"]
+min_value = 0.0
+max_value = 128.0
+
+[node name="MinOceanLabel" type="Label" parent="UI/PanelContainer/MarginContainer/VBoxContainer/FinderControls"]
+text = "Min Ocean"
+
+[node name="MinOceanSpinBox" type="SpinBox" parent="UI/PanelContainer/MarginContainer/VBoxContainer/FinderControls"]
+min_value = 0.0
+max_value = 128.0
+
+[node name="MinIceLabel" type="Label" parent="UI/PanelContainer/MarginContainer/VBoxContainer/FinderControls"]
+text = "Min Ice"
+
+[node name="MinIceSpinBox" type="SpinBox" parent="UI/PanelContainer/MarginContainer/VBoxContainer/FinderControls"]
+min_value = 0.0
+max_value = 128.0
+
+[node name="MinGasGiantLabel" type="Label" parent="UI/PanelContainer/MarginContainer/VBoxContainer/FinderControls"]
+text = "Min Gas Giant"
+
+[node name="MinGasGiantSpinBox" type="SpinBox" parent="UI/PanelContainer/MarginContainer/VBoxContainer/FinderControls"]
+min_value = 0.0
+max_value = 64.0
+
+[node name="MinIceGiantLabel" type="Label" parent="UI/PanelContainer/MarginContainer/VBoxContainer/FinderControls"]
+text = "Min Ice Giant"
+
+[node name="MinIceGiantSpinBox" type="SpinBox" parent="UI/PanelContainer/MarginContainer/VBoxContainer/FinderControls"]
+min_value = 0.0
+max_value = 64.0
+
 [node name="PreviewLabel" type="Label" parent="UI/PanelContainer/MarginContainer/VBoxContainer"]
-custom_minimum_size = Vector2(0, 180)
+custom_minimum_size = Vector2(0, 220)
 text = "Seed preview will appear here."
 autowrap_mode = 2
 vertical_alignment = 1
 
 [node name="FinderStatusLabel" type="Label" parent="UI/PanelContainer/MarginContainer/VBoxContainer"]
-text = "Searches the next 128 seeds for at least one life-friendly world."
+text = "Finder matches all selected criteria at once."
 autowrap_mode = 2
 
 [connection signal="pressed" from="UI/PanelContainer/MarginContainer/VBoxContainer/SeedRow/PrevSeedButton" to="." method="_on_prev_seed_button_pressed"]
