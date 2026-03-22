@@ -40,6 +40,79 @@ static func generate_system(system: SystemData) -> void:
 	system.generated = true
 
 
+static func analyze_seed(
+	galaxy_seed: int,
+	system_count: int,
+	min_distance: float,
+	radius: float,
+	sample_limit: int = -1
+) -> Dictionary:
+	var galaxy: GalaxyData = generate_galaxy(galaxy_seed, system_count, min_distance, radius)
+	var systems_to_sample: int = galaxy.systems.size()
+	if sample_limit > 0:
+		systems_to_sample = mini(systems_to_sample, sample_limit)
+
+	var summary: Dictionary = {
+		"seed": galaxy_seed,
+		"sampled_systems": systems_to_sample,
+		"planet_count": 0,
+		"moon_count": 0,
+		"belt_count": 0,
+		"habitable_candidates": 0,
+		"rocky_planets": 0,
+		"ocean_planets": 0,
+		"ice_planets": 0,
+		"gas_giants": 0,
+		"ice_giants": 0,
+		"first_star_type": StarData.StarType.G,
+		"first_star_temperature_k": 0.0,
+		"best_system_index": -1,
+		"best_system_seed": 0,
+		"best_system_habitable_candidates": 0,
+		"best_system_planet_count": 0,
+		"best_system_belt_count": 0
+	}
+
+	for system_index in range(systems_to_sample):
+		var system: SystemData = galaxy.systems[system_index]
+		generate_system(system)
+
+		var system_habitable_candidates: int = 0
+		summary["planet_count"] += system.planets.size()
+		summary["belt_count"] += system.asteroid_belts.size()
+
+		if system_index == 0 and not system.stars.is_empty():
+			summary["first_star_type"] = system.stars[0].spectral_type
+			summary["first_star_temperature_k"] = system.stars[0].temperature_k
+
+		for planet in system.planets:
+			summary["moon_count"] += planet.moons.size()
+			match planet.type:
+				PlanetData.PlanetType.ROCKY:
+					summary["rocky_planets"] += 1
+				PlanetData.PlanetType.OCEAN:
+					summary["ocean_planets"] += 1
+				PlanetData.PlanetType.ICE:
+					summary["ice_planets"] += 1
+				PlanetData.PlanetType.GAS_GIANT:
+					summary["gas_giants"] += 1
+				PlanetData.PlanetType.ICE_GIANT:
+					summary["ice_giants"] += 1
+			if _is_habitable_candidate(planet):
+				system_habitable_candidates += 1
+
+		summary["habitable_candidates"] += system_habitable_candidates
+
+		if system_habitable_candidates > summary["best_system_habitable_candidates"]:
+			summary["best_system_index"] = system_index
+			summary["best_system_seed"] = system.system_seed
+			summary["best_system_habitable_candidates"] = system_habitable_candidates
+			summary["best_system_planet_count"] = system.planets.size()
+			summary["best_system_belt_count"] = system.asteroid_belts.size()
+
+	return summary
+
+
 static func _generate_star(star_seed: int) -> StarData:
 	var star: StarData = StarData.new()
 	star.star_seed = star_seed
@@ -466,6 +539,16 @@ static func _moon_radius_earth(moon_type: MoonData.MoonType, mass_earth: float) 
 	if moon_type == MoonData.MoonType.ICE:
 		return 1.15 * pow(max(mass_earth, 0.01), 0.28)
 	return pow(max(mass_earth, 0.01), 0.30)
+
+
+static func _is_habitable_candidate(planet: PlanetData) -> bool:
+	if planet == null:
+		return false
+
+	if planet.type != PlanetData.PlanetType.ROCKY and planet.type != PlanetData.PlanetType.OCEAN:
+		return false
+
+	return planet.temperature_k >= 240.0 and planet.temperature_k <= 330.0
 
 
 static func _equilibrium_temperature_k(luminosity_solar: float, distance_au: float) -> float:
