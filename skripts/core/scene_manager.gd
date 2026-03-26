@@ -1,9 +1,5 @@
 extends Node
 
-const ERR_NOT_INITED := "ERR_SCENEMANAGER_NOT_INITIALIZED"
-const ERR_SCENE_NOT_EXISTS := "ERR_SCENE_NOT_EXISTS"
-const ERR_LOAD_FAILED := "ERR_SCENE_LOAD_FAILED"
-
 const LOADING_SCENE_PATH := "res://scenes/Loading.tscn"
 
 var container: Node
@@ -21,17 +17,17 @@ func initialize(scene_container: Node):
 func change_scene(path: String) -> void:
 
 	if container == null:
-		push_error(tr(ERR_NOT_INITED))
+		Log.error(1, "")
 		return
 
 	if not ResourceLoader.exists(path):
-		push_error("%s: %s" % [tr(ERR_SCENE_NOT_EXISTS), path])
+		Log.error(2, path)
 		return
 
 	var packed: PackedScene = load(path)
 
 	if packed == null:
-		push_error("%s: %s" % [tr(ERR_LOAD_FAILED), path])
+		Log.error(3, LOADING_SCENE_PATH)
 		return
 
 	_replace_scene(packed)
@@ -40,11 +36,11 @@ func change_scene(path: String) -> void:
 func change_scene_with_loading(path: String):
 
 	if container == null:
-		push_error(tr(ERR_NOT_INITED))
+		Log.error(1, "")
 		return
 
 	if not ResourceLoader.exists(path):
-		push_error("%s: %s" % [tr(ERR_SCENE_NOT_EXISTS), path])
+		Log.error(2, path)
 		return
 
 	target_scene_path = path
@@ -55,7 +51,7 @@ func change_scene_with_loading(path: String):
 
 	if packed == null:
 		is_loading = false
-		push_error("%s: %s" % [tr(ERR_LOAD_FAILED), LOADING_SCENE_PATH])
+		Log.error(3, LOADING_SCENE_PATH)
 		return
 
 	_replace_scene(packed)
@@ -78,7 +74,7 @@ func finish_loading(packed: PackedScene) -> void:
 
 	if packed == null:
 		is_loading = false
-		push_error("%s: %s" % [tr(ERR_LOAD_FAILED), target_scene_path])
+		Log.error(3, target_scene_path)
 		return
 
 	is_loading = false
