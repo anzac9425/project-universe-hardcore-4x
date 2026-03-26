@@ -7,3 +7,4 @@ var version: float = 0.00
 @export var system_count: int
 @export var galaxy_radius: float
 @export var min_system_distance: float
+@export var Rd: float

@@ -19,7 +19,7 @@ func start_new_game(new_config: GameConfig):
 		config.base_seed,
 		config.system_count,
 		config.min_system_distance,
-		config.galaxy_radius
+		config.Rd
 	)
 	
 	game_started = true
@@ -33,7 +33,7 @@ func enter_system(system: SystemData):
 
 	current_system = system
 
-	Log.info("system")
+	Log.info("System Entered: %s" % [system])
 
 
 func save_data() -> Dictionary:

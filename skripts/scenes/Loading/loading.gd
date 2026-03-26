@@ -2,8 +2,6 @@ extends Node2D
 
 @onready var progress_bar: ProgressBar = $ProgressBar
 
-const MAX_LOADING_FRAMES := 1800
-
 
 func _ready():
 	await load_scene()
@@ -47,7 +45,7 @@ func load_scene():
 			return
 
 		frame_count += 1
-		if frame_count > MAX_LOADING_FRAMES:
+		if frame_count > C.MAX_LOADING_FRAMES:
 			Log.error(13, path)
 			SceneManager.finish_loading(null)
 			return

@@ -1,10 +1,6 @@
 extends Node
 class_name MapGenerator
 
-const SOLAR_MASS_TO_EARTH_MASS: float = 332_946.0
-const EARTH_RADIUS_TO_AU: float = 4.26352e-5
-const GOLDEN_ANGLE: float = 2.399963229728653
-
 
 static func derive_seed(parent: int, purpose: String, index: int = 0) -> int:
 	var digest = ("%d:%s:%d" % [parent, purpose, index]).sha256_text()
@@ -21,15 +17,15 @@ static func generate(
 	base_seed: int,
 	system_count: int,
 	min_distance: float,
-	radius: float
-) -> GalaxyData:
+	Rd: float
+):
 	
 	var galaxy = GalaxyData.new()
 	galaxy.galaxy_seed = derive_seed(base_seed, "galaxy")
 	var rng = make_rng(galaxy.galaxy_seed)
 	
-	var raw_positions = _sample_density_field(rng, system_count * 3, radius)  # 과샘플링
-	var filtered = _poisson_filter(raw_positions, radius * 0.05)  # 최소 거리 필터
+	var raw_positions = _sample_density_field(rng, system_count * 3, Rd)  # 과샘플링
+	var filtered = _poisson_filter(raw_positions, min_distance)  # 최소 거리 필터
 	filtered = filtered.slice(0, system_count)
 
 	for i in range(filtered.size()):
@@ -38,14 +34,12 @@ static func generate(
 		system.system_seed = derive_seed(galaxy.galaxy_seed, "system", i)
 		system.generated = false
 		galaxy.systems.append(system)
-		
-	return galaxy
 
 
 static func _sample_density_field(
 	rng: RandomNumberGenerator,
 	system_count: int,
-	radius: float
+	Rd: float
 ) -> Array[Vector2]:
 
 	var positions: Array[Vector2] = []
@@ -56,7 +50,7 @@ static func _sample_density_field(
 	for _i in range(system_count):
 		# inverse CDF: r = −Rd × ln(1−u)  →  지수 분포 샘플링
 		var u = rng.randf_range(0.0001, 0.9999)
-		var r = -radius * log(1.0 - u)
+		var r = -Rd * log(1.0 - u)
 
 		# 나선팔 중심각
 		var arm_idx   = rng.randi_range(0, ARM_COUNT - 1)

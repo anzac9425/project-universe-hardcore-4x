@@ -1,7 +1,5 @@
 extends Node
 
-const LOADING_SCENE_PATH := "res://scenes/Loading.tscn"
-
 var container: Node
 var current_scene: Node
 var target_scene_path: String
@@ -27,7 +25,7 @@ func change_scene(path: String) -> void:
 	var packed: PackedScene = load(path)
 
 	if packed == null:
-		Log.error(3, LOADING_SCENE_PATH)
+		Log.error(3, C.SCENE_LOADING_PATH)
 		return
 
 	_replace_scene(packed)
@@ -47,11 +45,11 @@ func change_scene_with_loading(path: String):
 	loading_progress = 0.0
 	is_loading = true
 
-	var packed: PackedScene = load(LOADING_SCENE_PATH)
+	var packed: PackedScene = load(C.SCENE_LOADING_PATH)
 
 	if packed == null:
 		is_loading = false
-		Log.error(3, LOADING_SCENE_PATH)
+		Log.error(3, C.SCENE_LOADING_PATH)
 		return
 
 	_replace_scene(packed)
