@@ -18,7 +18,7 @@ static func generate(
 	system_count: int,
 	min_distance: float,
 	Rd: float
-):
+) -> GalaxyData:
 	
 	var galaxy = GalaxyData.new()
 	galaxy.galaxy_seed = derive_seed(base_seed, "galaxy")
@@ -34,6 +34,8 @@ static func generate(
 		system.system_seed = derive_seed(galaxy.galaxy_seed, "system", i)
 		system.generated = false
 		galaxy.systems.append(system)
+
+	return galaxy
 
 
 static func _sample_density_field(

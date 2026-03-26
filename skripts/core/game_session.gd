@@ -1,6 +1,7 @@
 extends Node
 
 var config: GameConfig
+var galaxy: GalaxyData
 
 var current_system = SystemData
 var game_started = false
@@ -14,8 +15,7 @@ func start_new_game(new_config: GameConfig):
 		return
 
 	config = new_config
-
-	MapGenerator.generate(
+	galaxy = MapGenerator.generate(
 		config.base_seed,
 		config.system_count,
 		config.min_system_distance,
@@ -46,5 +46,6 @@ func load_data(data: Dictionary):
 	
 func reset():
 	config = null
+	galaxy = null
 	
 	game_started = false
