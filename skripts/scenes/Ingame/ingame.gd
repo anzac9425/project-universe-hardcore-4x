@@ -1,6 +1,6 @@
 extends Node2D
 
-const SYSTEM_DOT_RADIUS := 6.0
+const SYSTEM_DOT_RADIUS := 60.0
 const GALAXY_CENTER_COLOR := Color("ffd166")
 const SYSTEM_COLOR := Color("74c0fc")
 
