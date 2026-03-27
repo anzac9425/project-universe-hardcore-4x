@@ -2,10 +2,12 @@ extends Resource
 class_name GalaxyData
 
 enum GalaxyType {
-	spiral,
-	barred_spiral,
-	elliptical,
-	irregular
+	E,
+	S0,
+	Sa,
+	Sb,
+	Sc,
+	Irr
 }
 
 var galaxy_seed: int
