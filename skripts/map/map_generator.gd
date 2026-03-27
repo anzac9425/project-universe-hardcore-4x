@@ -11,5 +11,5 @@ static func generate(
 	var u2 = C.hash_float(galaxy.galaxy_seed, C.HashPurpose.GALAXY, 1)
 	galaxy.mass = pow(10.0, C.M_GAL_MU + C.M_GAL_SIGMA * C.get_Z(u1, u2))
 	
-	Log.info("%s" % [C.f_baryon(galaxy.mass, galaxy.galaxy_seed)])
+	Log.info("%s" % [C.Delta_type(galaxy.type)])
 	return galaxy

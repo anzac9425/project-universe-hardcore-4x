@@ -97,3 +97,21 @@ static func mu_gas(mass) -> float:
 
 	return a * (log_msun(mass) - m_1)
 	
+static func Delta_type(type: int) -> float:
+	match type:
+		GalaxyData.GalaxyType.E:
+			return -0.25
+		GalaxyData.GalaxyType.S0:
+			return -0.1
+		GalaxyData.GalaxyType.Sa:
+			return 0.0
+		GalaxyData.GalaxyType.Sb:
+			return 0.05
+		GalaxyData.GalaxyType.Sc:
+			return 0.1
+		GalaxyData.GalaxyType.Irr:
+			return -0.3
+		_:
+			return 0.0
+# log10(f_gas) = mu_gas(M_gal) + Delta_type + sigma_g,sc * Z_g
+# f_gas = 10^(log10(f_gas)

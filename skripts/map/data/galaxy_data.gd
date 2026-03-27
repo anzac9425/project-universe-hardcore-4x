@@ -10,6 +10,8 @@ enum GalaxyType {
 	Irr
 }
 
+var type: int = GalaxyType.Sb
+
 var galaxy_seed: int
 var mass: float
 var systems: Array[SystemData] =[]
