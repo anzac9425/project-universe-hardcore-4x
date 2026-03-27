@@ -10,7 +10,7 @@ enum GalaxyType {
 	Irr
 }
 
-var type: int = GalaxyType.Sb
+var type: int = 3
 
 var galaxy_seed: int
 

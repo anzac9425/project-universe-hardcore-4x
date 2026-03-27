@@ -84,7 +84,7 @@ static func f_baryon_zero(mass: float) -> float:
 
 
 static func f_baryon(galaxy: GalaxyData) -> float:
-	const SIGMA_B_SC: float = 0.2
+	const SIGMA_B_SC: float = 0.1
 	
 	var u1 = hash_float(galaxy.galaxy_seed, HashPurpose.GALAXY_BARYON, 0)
 	var u2 = hash_float(galaxy.galaxy_seed, HashPurpose.GALAXY_BARYON, 1)
@@ -93,33 +93,28 @@ static func f_baryon(galaxy: GalaxyData) -> float:
 	var x = logx(f_baryon_zero(galaxy.mass)) + SIGMA_B_SC * Z_b
 	
 	return 1.0 / (1.0 + pow(10.0, -x))
-
-static func mu_gas(mass) -> float:
-	const a: float = -0.9
-	const m_1: float = 10.8
-
-	return a * (log_msun(mass) - m_1)
+	
 	
 static func Delta_type(type: int) -> float:
 	match type:
 		GalaxyData.GalaxyType.E:
-			return -0.25
+			return -0.8
 		GalaxyData.GalaxyType.S0:
-			return -0.1
+			return -0.5
 		GalaxyData.GalaxyType.Sa:
-			return 0.0
-		GalaxyData.GalaxyType.Sb:
-			return 0.05
-		GalaxyData.GalaxyType.Sc:
-			return 0.1
-		GalaxyData.GalaxyType.Irr:
 			return -0.3
+		GalaxyData.GalaxyType.Sb:
+			return 0.0
+		GalaxyData.GalaxyType.Sc:
+			return 0.3
+		GalaxyData.GalaxyType.Irr:
+			return 0.6
 		_:
 			return 0.0
 
 
 static func f_gas(galaxy: GalaxyData) -> float:
-	const SIGMA_G_SC: float = 0.2
+	const SIGMA_G_SC: float = 0.1
 	
 	var u1 = hash_float(galaxy.galaxy_seed, HashPurpose.GALAXY_GAS, 0)
 	var u2 = hash_float(galaxy.galaxy_seed, HashPurpose.GALAXY_GAS, 1)
@@ -128,3 +123,11 @@ static func f_gas(galaxy: GalaxyData) -> float:
 	var x = mu_gas(galaxy.mass) + Delta_type(galaxy.type) + SIGMA_G_SC * Z_g
 	
 	return 1.0 / (1.0 + pow(10.0, -x))
+
+
+static func mu_gas(mass) -> float:
+	const a: float = -0.9
+	const m_1: float = 10.8
+
+	return a * (log_msun(mass) - m_1)
+	

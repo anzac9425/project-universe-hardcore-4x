@@ -17,15 +17,18 @@ static func generate(
 	var f_b = C.f_baryon(galaxy)
 	var f_g = C.f_gas(galaxy)
 	
-	var M_total = galaxy.mass
-	var M_baryon = M_total * f_b
-	var M_gas = M_baryon * f_g
-	var M_star = M_baryon * (1.0 - f_g)
+	var m_baryon = galaxy.mass * f_b
+	var m_gas = m_baryon * f_g
+	var m_star = m_baryon * (1.0 - f_g)
 	
-	galaxy.f_baryon = C.f_baryon(galaxy)
-	galaxy.f_gas = C.f_gas(galaxy)
-	galaxy.m_baryon = galaxy.f_baryon * galaxy.mass
-	galaxy.m_gas = galaxy.f_gas * galaxy.m_baryon
-	galaxy.m_star = galaxy.m_baryon * (1.0 - galaxy.f_gas)
+	galaxy.f_baryon = f_b
+	galaxy.f_gas = f_g
+	galaxy.m_baryon = m_baryon
+	galaxy.m_gas = m_gas
+	galaxy.m_star = m_star
+	
+	Log.info("%s" % [galaxy.mass/C.MILKYWAY_MASS])
+	Log.info("%s" % [galaxy.f_baryon])
+	Log.info("%s" % [galaxy.f_gas])
 	
 	return galaxy
