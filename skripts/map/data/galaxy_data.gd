@@ -10,15 +10,15 @@ enum GalaxyType {
 	Irr
 }
 
-var type: int = 3
+var type: int
 
 var galaxy_seed: int
 
-var mass: float
+var m_vir: float
 var f_baryon: float
 var f_gas: float
-var m_baryon: float
-var m_gas: float
-var m_star: float
+var f_bulge: float
+var f_disk: float
+var f_halo: float
 
 var systems: Array[SystemData] =[]

@@ -1,7 +1,7 @@
 # Project Workflow
 
 ## Current Version
-- `0.0`
+- `dev-0.002`
 
 ## Git Commands
 ```bash

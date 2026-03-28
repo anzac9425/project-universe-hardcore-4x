@@ -7,28 +7,46 @@ static func generate(
 	
 	var galaxy = GalaxyData.new()
 	
-	galaxy.galaxy_seed = C.hash_int(base_seed, C.HashPurpose.GALAXY)
+	var galaxy_seed = C.hash_int(base_seed, C.HashPurpose.GALAXY)
+	galaxy.galaxy_seed = galaxy_seed
 	
-	var u1 = C.hash_float(galaxy.galaxy_seed, C.HashPurpose.GALAXY, 0)
-	var u2 = C.hash_float(galaxy.galaxy_seed, C.HashPurpose.GALAXY, 1)
+	var u1 = C.hash_float(galaxy_seed, C.HashPurpose.GALAXY, 0)
+	var u2 = C.hash_float(galaxy_seed, C.HashPurpose.GALAXY, 1)
 	
-	galaxy.mass = pow(10.0, C.M_GAL_MU + C.M_GAL_SIGMA * C.get_Z(u1, u2))
+	var m_vir_msun = pow(10.0, C.M_GAL_MU + C.M_GAL_SIGMA * C.get_Z(u1, u2))
+	var m_vir = m_vir_msun * C.SOLAR_MASS
+	galaxy.m_vir = m_vir
 	
-	var f_b = C.f_baryon(galaxy)
-	var f_g = C.f_gas(galaxy)
+	var f_baryon = C.f_baryon(galaxy_seed, m_vir)
+	galaxy.f_baryon = f_baryon
 	
-	var m_baryon = galaxy.mass * f_b
-	var m_gas = m_baryon * f_g
-	var m_star = m_baryon * (1.0 - f_g)
+	var m_baryon = m_vir * f_baryon
 	
-	galaxy.f_baryon = f_b
-	galaxy.f_gas = f_g
-	galaxy.m_baryon = m_baryon
-	galaxy.m_gas = m_gas
-	galaxy.m_star = m_star
+	var f_gas = C.f_gas(galaxy_seed, m_baryon)
+	galaxy.f_gas = f_gas
 	
-	Log.info("%s" % [galaxy.mass/C.MILKYWAY_MASS])
-	Log.info("%s" % [galaxy.f_baryon])
-	Log.info("%s" % [galaxy.f_gas])
+	var m_gas = m_baryon * f_gas # gas/baryon
+	var m_star = m_baryon * (1.0 - f_gas) # star/baryon
+
+	var f_halo = C.f_star_halo(galaxy_seed, m_star, f_gas)
+	galaxy.f_halo = f_halo
+	
+	var Delta_physics = C.Delta_physics(galaxy_seed)
+	var bd = C.f_bulge_disk(galaxy_seed, m_star, f_gas, Delta_physics, f_halo)
+	var f_bulge = bd["f_bulge"]
+	var f_disk  = bd["f_disk"]
+	galaxy.f_bulge = f_bulge
+	galaxy.f_disk = f_disk
+
+	var galaxy_type = C.classify_morphology(f_bulge, f_disk, f_gas, f_halo)
+	galaxy.type = galaxy_type
+	
+	Log.info("%s" % [m_vir/C.MILKYWAY_MASS])
+	Log.info("%s" % [f_baryon])
+	Log.info("%s" % [f_gas])
+	Log.info("%s" % [f_bulge])
+	Log.info("%s" % [f_disk])
+	Log.info("%s" % [f_halo])
+	Log.info("%s" % [galaxy_type])
 	
 	return galaxy
