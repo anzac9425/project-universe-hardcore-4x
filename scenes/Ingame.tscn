@@ -1,7 +1,7 @@
 [gd_scene format=3 uid="uid://dupk85xbdfs4o"]
 
-[ext_resource type="Script" uid="uid://ctqmv14jc5m3w" path="res://skripts/scenes/Ingame/ingame.gd" id="1_ingame"]
-[ext_resource type="Script" uid="uid://cjbqgadj6jh7w" path="res://skripts/scenes/Ingame/map_camera.gd" id="2_5fjqs"]
+[ext_resource type="Script" uid="uid://ctqmv14jc5m3w" path="res://scripts/scenes/Ingame/ingame.gd" id="1_ingame"]
+[ext_resource type="Script" uid="uid://cjbqgadj6jh7w" path="res://scripts/scenes/Ingame/map_camera.gd" id="2_5fjqs"]
 [ext_resource type="Script" uid="uid://hlpvstr3oo46" path="res://temp/camera_2d.gd" id="4_0bo3v"]
 
 [node name="Ingame" type="Node2D" unique_id=1589196222]

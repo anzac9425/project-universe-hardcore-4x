@@ -21,4 +21,6 @@ var f_bulge: float
 var f_disk: float
 var f_star_halo: float
 
+var halo: HaloData
+
 var systems: Array[SystemData] =[]
