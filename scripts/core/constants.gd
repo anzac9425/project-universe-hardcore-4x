@@ -71,7 +71,8 @@ enum HashPurpose {
 	GALAXY_GAS_DELTA_PHYSICS,
 	GALAXY_STAR_HALO,
 	GALAXY_MORPHOLOGY,
-	GALAXY_HALO_CONCENTRATION_SCATTER
+	GALAXY_HALO_CONCENTRATION_SCATTER,
+	GALAXY_DISK_SCALE_LENGTH
 }
 
 # f_baryon
@@ -402,3 +403,85 @@ static func halo_state_from_mvir(
 	result["mvir_input"] = m_vir
 	result["mvir_input_msun"] = m_vir_msun
 	return result
+
+# DISK LENGTH
+static func sample_disk_scale_length_si(
+	galaxy_seed: int,
+	m_disk_star_kg: float,
+	z: float = 0.0,
+	r200c_kpc: float = -1.0
+) -> Dictionary:
+	# SI input/output
+	# - mass: kg
+	# - length: m
+	#
+	# Observational anchor:
+	# late-type size-mass relation from van der Wel et al. 2014
+	# Reff/kpc = A * (M*/5e10 Msun)^alpha
+	# log10(A/kpc)=0.86 at z=0.25, alpha=0.25, scatter=0.16 dex
+	# size evolution for late types: Reff ∝ (1+z)^-0.75
+	#
+	# Exponential disk conversion:
+	# Rd = Reff / 1.678
+
+	const KPC_M: float = 3.0856775814913673e19
+	const MREF_KG: float = 5.0e10 * SOLAR_MASS
+	const Z_REF: float = 0.25
+
+	const LOG10_A_REF_KPC: float = 0.86
+	const ALPHA_M: float = 0.25
+	const BETA_Z: float = -0.75
+	const SIGMA_DEX_RE: float = 0.16
+
+	if not is_finite(m_disk_star_kg) or m_disk_star_kg <= 0.0:
+		Log.error(103, "res://scripts/core/constants.gd")
+		return {}
+
+	# independent deterministic scatter for size
+	var u1: float = max(hash_float(galaxy_seed, HashPurpose.GALAXY_DISK_SCALE_LENGTH, 0), 1e-12)
+	var u2 := hash_float(galaxy_seed, HashPurpose.GALAXY_DISK_SCALE_LENGTH, 1)
+	var z_scatter := get_Z(u1, u2)
+
+	var log10_reff_kpc := LOG10_A_REF_KPC \
+		+ ALPHA_M * logx(m_disk_star_kg / MREF_KG) \
+		+ BETA_Z * logx((1.0 + z) / (1.0 + Z_REF))
+
+	var log10_reff_kpc_sampled := log10_reff_kpc + SIGMA_DEX_RE * z_scatter
+	var reff_kpc := pow(10.0, log10_reff_kpc_sampled)
+	var rd_kpc := reff_kpc / 1.678
+
+	var rd_m := rd_kpc * KPC_M
+	var reff_m := reff_kpc * KPC_M
+
+	var rd_halo_check_m := NAN
+	var reff_halo_check_m := NAN
+	if is_finite(r200c_kpc) and r200c_kpc > 0.0:
+		reff_halo_check_m = 0.015 * r200c_kpc * KPC_M
+		rd_halo_check_m = (0.015 * r200c_kpc / 1.678) * KPC_M
+
+	return {
+		"r_eff_m": reff_m,
+		"r_d_m": rd_m,
+		"r_eff_kpc": reff_kpc,
+		"r_d_kpc": rd_kpc,
+		"log10_r_eff_kpc": log10_reff_kpc_sampled,
+		"log10_r_d_kpc": log10_reff_kpc_sampled - logx(1.678),
+		"r_eff_halo_check_m": reff_halo_check_m,
+		"r_d_halo_check_m": rd_halo_check_m,
+		"sigma_dex": SIGMA_DEX_RE
+	}
+
+static func sample_disk_scale_length_from_galaxy(
+	galaxy_seed: int,
+	m_vir_kg: float,
+	f_baryon_: float,
+	f_gas_: float,
+	f_disk: float,
+	z: float = 0.0,
+	r200c_kpc: float = -1.0
+) -> Dictionary:
+	# disk stellar mass in kg
+	var m_star_total_kg := m_vir_kg * f_baryon_ * (1.0 - f_gas_)
+	var m_disk_star_kg: float = m_star_total_kg * clamp(f_disk, 1e-6, 1.0)
+	return sample_disk_scale_length_si(galaxy_seed, m_disk_star_kg, z, r200c_kpc)
+	

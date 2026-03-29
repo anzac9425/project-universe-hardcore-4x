@@ -58,6 +58,16 @@ static func generate(
 
 	galaxy.halo = halo
 	
+	var disk_size := C.sample_disk_scale_length_from_galaxy(
+		galaxy_seed,
+		m_vir,
+		f_baryon,
+		f_gas,
+		f_disk,
+		0.0,
+		halo_dict["r200c_kpc"]
+	)
+	
 	Log.info("galaxy_seed: %s" % [galaxy.galaxy_seed])
 	Log.info("m_vir/C.MILKYWAY_MASS: %s" % [galaxy.m_vir/C.MILKYWAY_MASS])
 	Log.info("f_baryon: %s" % [galaxy.f_baryon])
