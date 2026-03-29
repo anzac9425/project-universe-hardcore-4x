@@ -28,25 +28,21 @@ static func generate(
 	var m_gas = m_baryon * f_gas # gas/baryon
 	var m_star = m_baryon * (1.0 - f_gas) # star/baryon
 
-	var f_halo = C.f_star_halo(galaxy_seed, m_star, f_gas)
-	galaxy.f_halo = f_halo
+	var f_star_halo = C.f_star_halo(galaxy_seed, m_star, f_gas)
+	galaxy.f_star_halo = f_star_halo
 	
 	var Delta_physics = C.Delta_physics(galaxy_seed)
-	var bd = C.f_bulge_disk(galaxy_seed, m_star, f_gas, Delta_physics, f_halo)
+	var bd = C.f_bulge_disk(galaxy_seed, m_star, f_gas, Delta_physics, f_star_halo)
 	var f_bulge = bd["f_bulge"]
 	var f_disk  = bd["f_disk"]
 	galaxy.f_bulge = f_bulge
 	galaxy.f_disk = f_disk
-
-	var galaxy_type = C.classify_morphology(f_bulge, f_disk, f_gas, f_halo)
-	galaxy.type = galaxy_type
 	
 	Log.info("%s" % [m_vir/C.MILKYWAY_MASS])
 	Log.info("%s" % [f_baryon])
 	Log.info("%s" % [f_gas])
 	Log.info("%s" % [f_bulge])
 	Log.info("%s" % [f_disk])
-	Log.info("%s" % [f_halo])
-	Log.info("%s" % [galaxy_type])
+	Log.info("%s" % [f_star_halo])
 	
 	return galaxy

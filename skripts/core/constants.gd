@@ -204,31 +204,3 @@ static func f_bulge_disk(
 		"f_disk": f_disk,
 		"s_morph": s_bulge
 	}
-
-
-static func classify_morphology( # minimalized, need change
-	f_bulge: float,
-	f_disk: float,
-	f_gas_: float,
-	f_star_halo_: float
-) -> int:
-
-	if f_bulge > 0.7 and f_gas_ < 0.1:
-		return GalaxyData.GalaxyType.E
-
-	if f_bulge > 0.5:
-		return GalaxyData.GalaxyType.S0
-
-	if f_disk > 0.6 and f_gas_ > 0.3:
-		return GalaxyData.GalaxyType.Sc
-
-	if f_disk > 0.5:
-		return GalaxyData.GalaxyType.Sb
-
-	if f_disk > 0.4:
-		return GalaxyData.GalaxyType.Sa
-
-	if f_star_halo_ > 0.1:
-		return GalaxyData.GalaxyType.Irr
-
-	return GalaxyData.GalaxyType.S0

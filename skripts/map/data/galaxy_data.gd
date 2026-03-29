@@ -19,6 +19,6 @@ var f_baryon: float
 var f_gas: float
 var f_bulge: float
 var f_disk: float
-var f_halo: float
+var f_star_halo: float
 
 var systems: Array[SystemData] =[]
