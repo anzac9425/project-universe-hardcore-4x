@@ -19,9 +19,9 @@ const SCENE_SETTINGS_PATH = "res://scenes/Settings.tscn"
 const GOLDEN_ANGLE: float = 2.399963229728653
 
 # kg
-const MILKYWAY_MASS: float = 1.15e12 * SOLAR_MASS
-const SOLAR_MASS: float = 1.98847e30
 const EARTH_MASS: float = 5.97219e24
+const SOLAR_MASS: float = 1.98847e30
+const MILKYWAY_MASS: float = 1.15e12 * SOLAR_MASS
 
 # m
 const AU: float = 149_597_870_700
@@ -204,3 +204,188 @@ static func f_bulge_disk(
 		"f_disk": f_disk,
 		"s_morph": s_bulge
 	}
+	
+# DM_HALO
+
+const G_NEWTON: float = 6.67430e-11
+const MPC_M: float = 3.0856775814913673e22
+const MSUN_KG: float = 1.98847e30
+
+# 필요하면 프로젝트 우주론에 맞게 바꾸세요.
+const H0_KM_S_MPC: float = 67.7
+const OMEGA_M0: float = 0.315
+const OMEGA_L0: float = 0.685
+
+# Dutton & Macciò (2014) scatter
+const LOG10_C200_SCATTER_DEX: float = 0.11
+
+
+static func omega_m_z(z: float, omega_m0: float = OMEGA_M0, omega_l0: float = OMEGA_L0) -> float:
+	var ez2 := omega_m0 * pow(1.0 + z, 3.0) + omega_l0
+	return omega_m0 * pow(1.0 + z, 3.0) / ez2
+
+
+static func delta_vir_bn98(z: float, omega_m0: float = OMEGA_M0, omega_l0: float = OMEGA_L0) -> float:
+	var x := omega_m_z(z, omega_m0, omega_l0) - 1.0
+	return 18.0 * PI * PI + 82.0 * x - 39.0 * x * x
+
+
+static func rho_crit_z(z: float, h0_km_s_mpc: float = H0_KM_S_MPC,
+		omega_m0: float = OMEGA_M0, omega_l0: float = OMEGA_L0) -> float:
+	var h0_si := h0_km_s_mpc * 1000.0 / MPC_M
+	var ez2 := omega_m0 * pow(1.0 + z, 3.0) + omega_l0
+	var hz := h0_si * sqrt(ez2)
+	return 3.0 * hz * hz / (8.0 * PI * G_NEWTON)
+
+
+static func g_nfw(x: float) -> float:
+	return log(1.0 + x) - x / (1.0 + x)
+
+
+static func random_normal(seed: int, purpose: int, index: int = 0) -> float:
+	var u1: float = max(hash_float(seed, purpose, index * 2), 1e-12)
+	var u2 := hash_float(seed, purpose, index * 2 + 1)
+	return get_Z(u1, u2)
+
+
+static func sample_log10_c200_mean(
+	m200c: float,
+	z: float = 0.0,
+	h0_km_s_mpc: float = H0_KM_S_MPC
+) -> float:
+	# Dutton & Macciò (2014), Planck-era fit
+	var h := h0_km_s_mpc / 100.0
+	var a := 0.520 + (0.905 - 0.520) * exp(-0.617 * pow(z, 1.21))
+	var b := -0.101 + 0.026 * z
+
+	# relation is written in units of 1e12 h^-1 Msun
+	var logm: float = log_msun(m200c) + logx(h) - 12.0
+	return a + b * logm
+
+
+static func sample_c200(
+	galaxy_seed: int,
+	m200c: float,
+	z: float = 0.0,
+	h0_km_s_mpc: float = H0_KM_S_MPC
+) -> float:
+	var mu := sample_log10_c200_mean(m200c, z, h0_km_s_mpc)
+	var z_scatter := random_normal(galaxy_seed, HashPurpose.GALAXY_STAR_HALO, 0)
+	var log10_c := mu + LOG10_C200_SCATTER_DEX * z_scatter
+	return pow(10.0, log10_c)
+
+
+static func solve_c_from_ratio(target_ratio: float) -> float:
+	if not is_finite(target_ratio) or target_ratio <= 0.0:
+		Log.error(100, "constans.gd")
+		return NAN
+	# Solve g(c)/c^3 = target_ratio
+	# Monotonic for c > 0, so bisection is robust.
+	var lo := 1e-4
+	var hi := 1e4
+
+	for i in range(80):
+		var mid := 0.5 * (lo + hi)
+		var val := g_nfw(mid) / pow(mid, 3.0)
+		if val > target_ratio:
+			lo = mid
+		else:
+			hi = mid
+
+	return 0.5 * (lo + hi)
+
+
+static func halo_state_from_m200c(
+	galaxy_seed: int,
+	m200c: float,
+	z: float = 0.0,
+	h0_km_s_mpc: float = H0_KM_S_MPC,
+	omega_m0: float = OMEGA_M0,
+	omega_l0: float = OMEGA_L0
+) -> Dictionary:
+	var rho_c := rho_crit_z(z, h0_km_s_mpc, omega_m0, omega_l0)
+	var delta_vir := delta_vir_bn98(z, omega_m0, omega_l0)
+
+	var c200 := sample_c200(galaxy_seed, m200c, z, h0_km_s_mpc)
+	var g200 := g_nfw(c200)
+
+	var r200c := pow(3.0 * m200c / (4.0 * PI * 200.0 * rho_c), 1.0 / 3.0)
+	var rs := r200c / c200
+
+	# Same NFW profile, different overdensity definition:
+	# 200 * g(c200) / c200^3 = Delta_vir * g(cvir) / cvir^3
+	var target_ratio := (200.0 / delta_vir) * g200 / pow(c200, 3.0)
+	var cvir := solve_c_from_ratio(target_ratio)
+	var gvir := g_nfw(cvir)
+
+	var mvir_pred := m200c * gvir / g200
+	var rvir := cvir * rs
+	var rho_s := m200c / (4.0 * PI * pow(rs, 3.0) * g200)
+
+	return {
+		"m200c": m200c,
+		"c200": c200,
+		"r200c": r200c,
+		"rs": rs,
+		"rho_s": rho_s,
+		"mvir_pred": mvir_pred,
+		"cvir": cvir,
+		"rvir": rvir,
+		"delta_vir": delta_vir,
+		"rho_crit": rho_c
+	}
+
+
+static func halo_state_from_mvir(
+	galaxy_seed: int,
+	m_vir: float,
+	z: float = 0.0,
+	h0_km_s_mpc: float = H0_KM_S_MPC,
+	omega_m0: float = OMEGA_M0,
+	omega_l0: float = OMEGA_L0
+) -> Dictionary:
+	# Solve for M200c so that the resulting NFW halo reproduces the requested Mvir.
+	var lo := m_vir * 1e-4
+	var hi := m_vir * 1e4
+
+	var f_lo := 0.0
+	var f_hi := 0.0
+	
+	var bracketed := false
+	for _expand in range(10):
+		var s_lo := halo_state_from_m200c(galaxy_seed, lo, z, h0_km_s_mpc, omega_m0, omega_l0)
+		var s_hi := halo_state_from_m200c(galaxy_seed, hi, z, h0_km_s_mpc, omega_m0, omega_l0)
+
+		f_lo = log(s_lo["mvir_pred"] / m_vir)
+		f_hi = log(s_hi["mvir_pred"] / m_vir)
+
+		if f_lo * f_hi <= 0.0:
+			bracketed = true
+			break
+
+		lo *= 0.1
+		hi *= 10.0
+	if not bracketed:
+		Log.error(101, "constants.gd")
+		return {}
+
+	# Bisection in log-space.
+	var mid := m_vir
+	for _i in range(64):
+		mid = sqrt(lo * hi)
+		var s_mid := halo_state_from_m200c(galaxy_seed, mid, z, h0_km_s_mpc, omega_m0, omega_l0)
+		var f_mid := log(s_mid["mvir_pred"] / m_vir)
+
+		if abs(f_mid) < 1e-8:
+			return s_mid
+
+		if f_lo * f_mid <= 0.0:
+			hi = mid
+			f_hi = f_mid
+		else:
+			lo = mid
+			f_lo = f_mid
+
+	var result := halo_state_from_m200c(galaxy_seed, mid, z, h0_km_s_mpc, omega_m0, omega_l0)
+	result["mvir_input"] = m_vir
+	return result

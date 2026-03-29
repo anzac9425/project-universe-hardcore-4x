@@ -38,6 +38,8 @@ static func generate(
 	galaxy.f_bulge = f_bulge
 	galaxy.f_disk = f_disk
 	
+	var dm := C.halo_state_from_mvir(galaxy_seed, m_vir, 0.0)
+	
 	Log.info("%s" % [m_vir/C.MILKYWAY_MASS])
 	Log.info("%s" % [f_baryon])
 	Log.info("%s" % [f_gas])
