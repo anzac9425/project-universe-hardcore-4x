@@ -73,7 +73,9 @@ enum HashPurpose {
 	GALAXY_MORPHOLOGY,
 	GALAXY_HALO_CONCENTRATION_SCATTER,
 	GALAXY_DISK_SCALE_LENGTH,
-	GALAXY_DISK_THICKNESS
+	GALAXY_DISK_THICKNESS,
+	GALAXY_BULGE_SERSIC,
+	GALAXY_BULGE_SIZE
 }
 
 # f_baryon
@@ -540,3 +542,98 @@ static func sample_disk_thickness_si( # z = (관측된 파장 - 원래 파장) /
 		"q_z0_over_rd": q,
 		"sigma_logit": SIGMA_LOGIT
 	}
+
+# BULGE SERSIC + SIZE
+static func sample_bulge_profile_si(
+	galaxy_seed: int,
+	m_bulge_star_kg: float,
+	f_bulge_: float,
+	s_morph: float,
+	z: float = 0.0,
+	r200c_kpc: float = -1.0
+) -> Dictionary:
+	const KPC_M: float = 3.0856775814913673e19
+	const MREF_KG: float = 5.0e10 * SOLAR_MASS
+	const Z_REF: float = 0.25
+
+	if not is_finite(m_bulge_star_kg) or m_bulge_star_kg <= 0.0:
+		Log.error(106, "res://scripts/core/constants.gd")
+		return {}
+
+	# Bulge effective-radius relation (early-type anchor):
+	# van der Wel+2014, z~0.25 : log10(Re/kpc)=0.60+0.75*log10(M*/5e10Msun), sigma~0.14 dex
+	# redshift evolution (early type): Re ∝ (1+z)^-1.48
+	const LOG10_A_RE_KPC: float = 0.60
+	const ALPHA_RE_MASS: float = 0.75
+	const BETA_RE_Z: float = -1.48
+	const SIGMA_DEX_RE: float = 0.14
+
+	# Sersic index soft-bounded logistic-normal around observed classical-bulge regime.
+	# n_min/n_max는 물리적 hard-cut이 아니라 tail를 부드럽게 줄이는 soft prior 역할.
+	const N_MIN: float = 0.6
+	const N_MAX: float = 8.5
+	const N0: float = 2.6
+	const SIGMA_LOGIT_N: float = 0.55
+	const A_MASS_N: float = 1.05
+	const A_BULGE_N: float = 0.55
+	const A_MORPH_N: float = 0.65
+
+	var logM_bulge := logx(m_bulge_star_kg / SOLAR_MASS)
+	var mass_term := logM_bulge - 10.5
+	var bulge_term := logit(clamp(f_bulge_, 1e-6, 1.0 - 1e-6)) - logit(0.25)
+	var p_bulge := sigmoid(s_morph)
+
+	var u1_n: float = max(hash_float(galaxy_seed, HashPurpose.GALAXY_BULGE_SERSIC, 0), 1e-12)
+	var u2_n := hash_float(galaxy_seed, HashPurpose.GALAXY_BULGE_SERSIC, 1)
+	var z_n := get_Z(u1_n, u2_n)
+
+	var x_n := logit((N0 - N_MIN) / (N_MAX - N_MIN)) \
+		+ A_MASS_N * mass_term \
+		+ A_BULGE_N * bulge_term \
+		+ A_MORPH_N * (p_bulge - 0.5) \
+		+ SIGMA_LOGIT_N * z_n
+	var n_sersic := N_MIN + (N_MAX - N_MIN) * sigmoid(x_n)
+
+	var u1_re: float = max(hash_float(galaxy_seed, HashPurpose.GALAXY_BULGE_SIZE, 0), 1e-12)
+	var u2_re := hash_float(galaxy_seed, HashPurpose.GALAXY_BULGE_SIZE, 1)
+	var z_re := get_Z(u1_re, u2_re)
+
+	var log10_reff_kpc := LOG10_A_RE_KPC \
+		+ ALPHA_RE_MASS * logx(m_bulge_star_kg / MREF_KG) \
+		+ BETA_RE_Z * logx((1.0 + z) / (1.0 + Z_REF)) \
+		+ 0.08 * (n_sersic - 3.0)
+
+	var log10_reff_kpc_sampled := log10_reff_kpc + SIGMA_DEX_RE * z_re
+	var r_eff_kpc := pow(10.0, log10_reff_kpc_sampled)
+
+	# soft halo consistency prior: r_eff/r200가 비현실적으로 커질수록 완만히 억제
+	var halo_soft_prior := 1.0
+	if is_finite(r200c_kpc) and r200c_kpc > 0.0:
+		var x_halo := logx((0.035 * r200c_kpc) / max(r_eff_kpc, 1e-9))
+		halo_soft_prior = 0.70 + 0.30 * sigmoid(4.0 * x_halo)
+		r_eff_kpc *= halo_soft_prior
+		log10_reff_kpc_sampled = logx(r_eff_kpc)
+
+	return {
+		"n_sersic": n_sersic,
+		"r_eff_kpc": r_eff_kpc,
+		"r_eff_m": r_eff_kpc * KPC_M,
+		"log10_r_eff_kpc": log10_reff_kpc_sampled,
+		"sigma_dex_re": SIGMA_DEX_RE,
+		"sigma_logit_n": SIGMA_LOGIT_N,
+		"halo_soft_prior": halo_soft_prior
+	}
+
+static func sample_bulge_profile_from_galaxy(
+	galaxy_seed: int,
+	m_vir_kg: float,
+	f_baryon_: float,
+	f_gas_: float,
+	f_bulge_: float,
+	s_morph: float,
+	z: float = 0.0,
+	r200c_kpc: float = -1.0
+) -> Dictionary:
+	var m_star_total_kg := m_vir_kg * f_baryon_ * (1.0 - f_gas_)
+	var m_bulge_star_kg: float = m_star_total_kg * clamp(f_bulge_, 1e-6, 1.0)
+	return sample_bulge_profile_si(galaxy_seed, m_bulge_star_kg, f_bulge_, s_morph, z, r200c_kpc)
