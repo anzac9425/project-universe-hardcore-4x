@@ -38,7 +38,7 @@ G_KPC_KM2_S2_MSUN (kpc (km/s)^2 / Msun)
 Sigma: vyaus alfeh (Σ = 질량 / 면적), (Σ ≈ M_disk / (2π Rd²))
 
 
-10. 벌지 Sérsic index 및 반지름 샘플링
+10. 벌지 Sérsic index 및 반지름 샘플링 #
 
 
 11. 강착 원반(accretion disk) 존재 여부 및 파라미터 생성
