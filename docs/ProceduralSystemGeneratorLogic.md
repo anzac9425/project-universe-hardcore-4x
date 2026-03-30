@@ -32,6 +32,10 @@
 
 
 9. 디스크 두께  샘플링
+z0 ∝ V_disp^2 / (π G Σ)
+V_disp = threh qnstks
+G_KPC_KM2_S2_MSUN (kpc (km/s)^2 / Msun)
+Sigma: vyaus alfeh (Σ = 질량 / 면적), (Σ ≈ M_disk / (2π Rd²))
 
 
 10. 벌지 Sérsic index 및 반지름 샘플링

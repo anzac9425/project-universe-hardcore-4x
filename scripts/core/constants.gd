@@ -72,7 +72,8 @@ enum HashPurpose {
 	GALAXY_STAR_HALO,
 	GALAXY_MORPHOLOGY,
 	GALAXY_HALO_CONCENTRATION_SCATTER,
-	GALAXY_DISK_SCALE_LENGTH
+	GALAXY_DISK_SCALE_LENGTH,
+	GALAXY_DISK_THICKNESS
 }
 
 # f_baryon
@@ -484,3 +485,58 @@ static func sample_disk_scale_length_from_galaxy(
 	var m_star_total_kg := m_vir_kg * f_baryon_ * (1.0 - f_gas_)
 	var m_disk_star_kg: float = m_star_total_kg * clamp(f_disk, 1e-6, 1.0)
 	return sample_disk_scale_length_si(galaxy_seed, m_disk_star_kg, z, r200c_kpc)
+
+#DISK THICKNESS
+static func sample_disk_thickness_si( # z = (관측된 파장 - 원래 파장) / 원래 파장
+	galaxy_seed: int,
+	r_d_m: float,
+	m_disk_star_kg: float,
+	f_gas_: float,
+	s_morph: float,
+	z: float = 0.0
+) -> Dictionary:
+	const KPC_M: float = 3.0856775814913673e19
+
+	if not is_finite(r_d_m) or r_d_m <= 0.0:
+		Log.error(104, "res://scripts/core/constants.gd")
+		return {}
+
+	if not is_finite(m_disk_star_kg) or m_disk_star_kg <= 0.0:
+		Log.error(105, "res://scripts/core/constants.gd")
+		return {}
+
+	# 두께 비율 q = z0 / Rd
+	# 평균은 얇은 원반(대략 0.1~0.15) 근처,
+	# 가스가 많으면 더 얇고, 벌지 비중이 크면 더 두껍게.
+	const Q0: float = 0.12
+	const Q_MIN: float = 0.03
+	const Q_MAX: float = 0.50
+	const SIGMA_LOGIT: float = 0.35
+
+	# morphology score -> bulge probability
+	var p_bulge := sigmoid(s_morph)
+
+	var logM := logx(m_disk_star_kg / SOLAR_MASS)
+	var gas_logit := logit(clamp(f_gas_, 1e-6, 1.0 - 1e-6))
+
+	var u1: float = max(hash_float(galaxy_seed, HashPurpose.GALAXY_DISK_THICKNESS, 0), 1e-12)
+	var u2 := hash_float(galaxy_seed, HashPurpose.GALAXY_DISK_THICKNESS, 1)
+	var Z := get_Z(u1, u2)
+
+	# q가 항상 양수이도록 logistic-normal 사용
+	var x := logit(Q0) \
+		+ 1.10 * (p_bulge - 0.30) \
+		- 0.90 * (gas_logit - logit(0.30)) \
+		+ 0.10 * (logM - 10.5) \
+		+ 0.3 * logx(1.0 + z) \
+		+ SIGMA_LOGIT * Z
+
+	var q: float = clamp(sigmoid(x), Q_MIN, Q_MAX)
+	var z0_m := q * r_d_m
+
+	return {
+		"z0_m": z0_m,
+		"z0_kpc": z0_m / KPC_M,
+		"q_z0_over_rd": q,
+		"sigma_logit": SIGMA_LOGIT
+	}

@@ -86,6 +86,19 @@ static func generate(
 	
 	galaxy.disk_size = disk_size
 	
+	var disk_thickness_dict := C.sample_disk_thickness_si(
+		galaxy_seed,
+		disk_size_dict["r_d_m"],
+		f_disk * m_star,
+		f_gas,
+		disk_size_dict["s_morph"],
+		0.0, # z = (관측된 파장 - 원래 파장) / 원래 파장
+	)
+	
+	if disk_thickness_dict.is_empty():
+		Log.error(111, "galaxy_seed")
+		return
+	
 	Log.info("galaxy_seed: %s" % [galaxy.galaxy_seed])
 	Log.info("m_vir/C.MILKYWAY_MASS: %s" % [galaxy.m_vir/C.MILKYWAY_MASS])
 	Log.info("f_baryon: %s" % [galaxy.f_baryon])
@@ -105,7 +118,5 @@ static func generate(
 	Log.info("rho_crit_msun_kpc3: %s" % [galaxy.halo.rho_crit_msun_kpc3])
 	Log.info("r_eff_m: %s" % [galaxy.disk_size.r_eff_m])
 	Log.info("r_d_m: %s" % [galaxy.disk_size.r_d_m])
-	Log.info("r_eff_halo_check_m: %s" % [galaxy.disk_size.r_eff_halo_check_m])
-	Log.info("r_d_halo_check_m: %s" % [galaxy.disk_size.r_d_halo_check_m])
 	
 	return galaxy
