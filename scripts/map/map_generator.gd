@@ -32,9 +32,10 @@ static func generate(
 	galaxy.f_star_halo = f_star_halo
 	
 	var Delta_physics = C.Delta_physics(galaxy_seed)
-	var bd = C.f_bulge_disk(galaxy_seed, m_star, f_gas, Delta_physics, f_star_halo)
-	var f_bulge = bd["f_bulge"]
-	var f_disk  = bd["f_disk"]
+	var bulge_disk_dict = C.f_bulge_disk(galaxy_seed, m_star, f_gas, Delta_physics, f_star_halo)
+	var f_bulge = bulge_disk_dict["f_bulge"]
+	var f_disk  = bulge_disk_dict["f_disk"]
+	var s_morph  = bulge_disk_dict["s_morph"]
 	galaxy.f_bulge = f_bulge
 	galaxy.f_disk = f_disk
 	
@@ -91,13 +92,22 @@ static func generate(
 		disk_size_dict["r_d_m"],
 		f_disk * m_star,
 		f_gas,
-		disk_size_dict["s_morph"],
-		0.0, # z = (관측된 파장 - 원래 파장) / 원래 파장
+		bulge_disk_dict["s_morph"],
+		0.0, # z = (관측된 파장 - 원래 파장) / 원래 파장 (Distance)
 	)
 	
 	if disk_thickness_dict.is_empty():
 		Log.error(111, "galaxy_seed")
 		return
+		
+	var disk_thickness := DiskThickness.new()
+	
+	disk_thickness.z0_m = disk_thickness_dict["z0_m"]
+	disk_thickness.z0_kpc = disk_thickness_dict["z0_kpc"]
+	disk_thickness.q_z0_over_rd = disk_thickness_dict["q_z0_over_rd"]
+	disk_thickness.sigma_logit = disk_thickness_dict["sigma_logit"]
+	
+	galaxy.disk_thickness = disk_thickness
 	
 	Log.info("galaxy_seed: %s" % [galaxy.galaxy_seed])
 	Log.info("m_vir/C.MILKYWAY_MASS: %s" % [galaxy.m_vir/C.MILKYWAY_MASS])
@@ -118,5 +128,7 @@ static func generate(
 	Log.info("rho_crit_msun_kpc3: %s" % [galaxy.halo.rho_crit_msun_kpc3])
 	Log.info("r_eff_m: %s" % [galaxy.disk_size.r_eff_m])
 	Log.info("r_d_m: %s" % [galaxy.disk_size.r_d_m])
+	Log.info("z0_m: %s" % [galaxy.disk_thickness.z0_m])
+	Log.info("q_z0_over_rd: %s" % [galaxy.disk_thickness.q_z0_over_rd])
 	
 	return galaxy

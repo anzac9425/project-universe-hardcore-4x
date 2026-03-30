@@ -23,5 +23,6 @@ var f_star_halo: float
 
 var halo: HaloData
 var disk_size: DiskSize
+var disk_thickness: DiskThickness
 
 var systems: Array[SystemData] =[]

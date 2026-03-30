@@ -149,9 +149,9 @@ static func f_star_halo(galaxy_seed: int, m_star: float, f_gas_: float) -> float
 	var gas_logit = logit(f_gas_)
 
 	const A0 = -2.2
-	const A1 = 0.8     # mass
-	const A2 = -0.6    # gas
-	const SIGMA = 0.7  # >= 0.5 # scatter
+	const A1 = 0.5     # mass
+	const A2 = 0.0    # gas
+	const SIGMA = 0.6  # scatter
 
 	var x = A0 + A1 * m_n + A2 * gas_logit + SIGMA * Z
 

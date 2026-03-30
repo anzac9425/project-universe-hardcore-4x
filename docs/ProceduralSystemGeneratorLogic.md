@@ -31,7 +31,7 @@
 8. 디스크 스케일 길이  로그정규 샘플링 #
 
 
-9. 디스크 두께  샘플링
+9. 디스크 두께  샘플링 #
 z0 ∝ V_disp^2 / (π G Σ)
 V_disp = threh qnstks
 G_KPC_KM2_S2_MSUN (kpc (km/s)^2 / Msun)
