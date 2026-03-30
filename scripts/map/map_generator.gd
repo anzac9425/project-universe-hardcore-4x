@@ -108,6 +108,31 @@ static func generate(
 	disk_thickness.sigma_logit = disk_thickness_dict["sigma_logit"]
 	
 	galaxy.disk_thickness = disk_thickness
+
+	var bulge_profile_dict := C.sample_bulge_profile_from_galaxy(
+		galaxy_seed,
+		m_vir,
+		f_baryon,
+		f_gas,
+		f_bulge,
+		s_morph,
+		0.0,
+		halo_dict["r200c_kpc"]
+	)
+
+	if bulge_profile_dict.is_empty():
+		Log.error(112, "galaxy_seed")
+		return
+
+	var bulge_profile := BulgeProfile.new()
+	bulge_profile.n_sersic = bulge_profile_dict["n_sersic"]
+	bulge_profile.r_eff_kpc = bulge_profile_dict["r_eff_kpc"]
+	bulge_profile.r_eff_m = bulge_profile_dict["r_eff_m"]
+	bulge_profile.log10_r_eff_kpc = bulge_profile_dict["log10_r_eff_kpc"]
+	bulge_profile.sigma_dex_re = bulge_profile_dict["sigma_dex_re"]
+	bulge_profile.sigma_logit_n = bulge_profile_dict["sigma_logit_n"]
+	bulge_profile.halo_soft_prior = bulge_profile_dict["halo_soft_prior"]
+	galaxy.bulge_profile = bulge_profile
 	
 	Log.info("galaxy_seed: %s" % [galaxy.galaxy_seed])
 	Log.info("m_vir/C.MILKYWAY_MASS: %s" % [galaxy.m_vir/C.MILKYWAY_MASS])
@@ -130,5 +155,7 @@ static func generate(
 	Log.info("r_d_m: %s" % [galaxy.disk_size.r_d_m])
 	Log.info("z0_m: %s" % [galaxy.disk_thickness.z0_m])
 	Log.info("q_z0_over_rd: %s" % [galaxy.disk_thickness.q_z0_over_rd])
+	Log.info("bulge_n_sersic: %s" % [galaxy.bulge_profile.n_sersic])
+	Log.info("bulge_r_eff_kpc: %s" % [galaxy.bulge_profile.r_eff_kpc])
 	
 	return galaxy
