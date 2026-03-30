@@ -484,4 +484,3 @@ static func sample_disk_scale_length_from_galaxy(
 	var m_star_total_kg := m_vir_kg * f_baryon_ * (1.0 - f_gas_)
 	var m_disk_star_kg: float = m_star_total_kg * clamp(f_disk, 1e-6, 1.0)
 	return sample_disk_scale_length_si(galaxy_seed, m_disk_star_kg, z, r200c_kpc)
-	

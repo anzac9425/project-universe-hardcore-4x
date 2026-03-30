@@ -58,7 +58,7 @@ static func generate(
 
 	galaxy.halo = halo
 	
-	var disk_size := C.sample_disk_scale_length_from_galaxy(
+	var disk_size_dict := C.sample_disk_scale_length_from_galaxy(
 		galaxy_seed,
 		m_vir,
 		f_baryon,
@@ -67,6 +67,24 @@ static func generate(
 		0.0,
 		halo_dict["r200c_kpc"]
 	)
+	
+	if disk_size_dict.is_empty():
+		Log.error(111, "galaxy_seed")
+		return
+		
+	var disk_size := DiskSize.new()
+	
+	disk_size.r_eff_m = disk_size_dict["r_eff_m"]
+	disk_size.r_d_m = disk_size_dict["r_d_m"]
+	disk_size.r_eff_kpc = disk_size_dict["r_eff_kpc"]
+	disk_size.r_d_kpc = disk_size_dict["r_d_kpc"]
+	disk_size.log10_r_eff_kpc = disk_size_dict["log10_r_eff_kpc"]
+	disk_size.log10_r_d_kpc = disk_size_dict["log10_r_d_kpc"]
+	disk_size.r_eff_halo_check_m = disk_size_dict["r_eff_halo_check_m"]
+	disk_size.r_d_halo_check_m = disk_size_dict["r_d_halo_check_m"]
+	disk_size.sigma_dex = disk_size_dict["sigma_dex"]
+	
+	galaxy.disk_size = disk_size
 	
 	Log.info("galaxy_seed: %s" % [galaxy.galaxy_seed])
 	Log.info("m_vir/C.MILKYWAY_MASS: %s" % [galaxy.m_vir/C.MILKYWAY_MASS])
@@ -85,5 +103,9 @@ static func generate(
 	Log.info("rvir_kpc: %s" % [galaxy.halo.rvir_kpc])
 	Log.info("delta_vir: %s" % [galaxy.halo.delta_vir])
 	Log.info("rho_crit_msun_kpc3: %s" % [galaxy.halo.rho_crit_msun_kpc3])
+	Log.info("r_eff_m: %s" % [galaxy.disk_size.r_eff_m])
+	Log.info("r_d_m: %s" % [galaxy.disk_size.r_d_m])
+	Log.info("r_eff_halo_check_m: %s" % [galaxy.disk_size.r_eff_halo_check_m])
+	Log.info("r_d_halo_check_m: %s" % [galaxy.disk_size.r_d_halo_check_m])
 	
 	return galaxy

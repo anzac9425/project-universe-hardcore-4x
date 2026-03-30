@@ -22,5 +22,6 @@ var f_disk: float
 var f_star_halo: float
 
 var halo: HaloData
+var disk_size: DiskSize
 
 var systems: Array[SystemData] =[]
