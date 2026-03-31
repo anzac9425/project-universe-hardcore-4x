@@ -75,7 +75,12 @@ enum HashPurpose {
 	GALAXY_DISK_SCALE_LENGTH,
 	GALAXY_DISK_THICKNESS,
 	GALAXY_BULGE_SERSIC,
-	GALAXY_BULGE_SIZE
+	GALAXY_BULGE_SIZE,
+	GALAXY_BH_MASS,
+	GALAXY_ACCRETION_SPIN,
+	GALAXY_ACCRETION_EDD_RATIO,
+	GALAXY_ACCRETION_MODE,
+	GALAXY_ACCRETION_EXISTENCE
 }
 
 # f_baryon
@@ -637,3 +642,107 @@ static func sample_bulge_profile_from_galaxy(
 	var m_star_total_kg := m_vir_kg * f_baryon_ * (1.0 - f_gas_)
 	var m_bulge_star_kg: float = m_star_total_kg * clamp(f_bulge_, 1e-6, 1.0)
 	return sample_bulge_profile_si(galaxy_seed, m_bulge_star_kg, f_bulge_, s_morph, z, r200c_kpc)
+
+# ACCRETION DISK (SMBH)
+static func _isco_radius_rg(spin_a: float) -> float:
+	# Kerr ISCO radius in units of r_g = GM/c^2 (prograde branch).
+	var a := clamp(spin_a, -0.998, 0.998)
+	var z1 := 1.0 + pow(1.0 - a * a, 1.0 / 3.0) * (pow(1.0 + a, 1.0 / 3.0) + pow(1.0 - a, 1.0 / 3.0))
+	var z2 := sqrt(3.0 * a * a + z1 * z1)
+	var sign_a := 1.0 if a >= 0.0 else -1.0
+	return 3.0 + z2 - sign_a * sqrt((3.0 - z1) * (3.0 + z1 + 2.0 * z2))
+
+
+static func sample_accretion_disk_from_galaxy(
+	galaxy_seed: int,
+	m_vir_kg: float,
+	f_baryon_: float,
+	f_gas_: float,
+	f_bulge_: float,
+	s_morph: float
+) -> Dictionary:
+	# 1) SMBH mass prior from bulge mass:
+	# Kormendy & Ho (2013)-like anchor
+	# log10(Mbh/Msun) = 8.69 + 1.16*(log10(Mbulge/Msun)-11) + scatter
+	const ALPHA_BH: float = 8.69
+	const BETA_BH: float = 1.16
+	const SIGMA_BH_DEX: float = 0.34
+
+	var m_star_total_kg := m_vir_kg * f_baryon_ * (1.0 - f_gas_)
+	var m_bulge_kg := m_star_total_kg * clamp(f_bulge_, 1e-6, 1.0)
+	var log10_mbulge := logx(m_bulge_kg / SOLAR_MASS)
+
+	var z_bh := random_normal(galaxy_seed, HashPurpose.GALAXY_BH_MASS, 0)
+	# Pseudobulge/compact-disk 계열을 완만히 반영하는 soft offset.
+	# (단일 앵커 고정 문제 완화)
+	var p_pseudobulge := sigmoid((0.22 - clamp(f_bulge_, 1e-6, 1.0)) / 0.08)
+	var delta_pseudo_dex := -0.45 * p_pseudobulge
+	var log10_mbh := ALPHA_BH + BETA_BH * (log10_mbulge - 11.0) + delta_pseudo_dex + SIGMA_BH_DEX * z_bh
+	var m_bh_kg := pow(10.0, log10_mbh) * SOLAR_MASS
+
+	# 2) Spin mixture:
+	# coherent vs chaotic fueling을 soft mixture로 반영.
+	const A_MIN: float = -0.998
+	const A_MAX: float = 0.998
+	var gas_centered := clamp((f_gas_ - 0.20) / 0.20, -2.0, 2.0)
+	var morph_centered := sigmoid(s_morph) - 0.5
+	var p_coherent := sigmoid(0.95 * gas_centered - 1.10 * morph_centered - 0.25 * (log10_mbh - 8.0))
+	var u_mode := hash_float(galaxy_seed, HashPurpose.GALAXY_ACCRETION_MODE, 0)
+	var z_spin := random_normal(galaxy_seed, HashPurpose.GALAXY_ACCRETION_SPIN, 0)
+
+	var spin_center := -0.05
+	var spin_sigma := 0.95
+	if u_mode < p_coherent:
+		spin_center = 0.62
+		spin_sigma = 0.55
+
+	var x_spin := logit((spin_center - A_MIN) / (A_MAX - A_MIN)) + spin_sigma * z_spin
+	var spin_a := A_MIN + (A_MAX - A_MIN) * sigmoid(x_spin)
+
+	var r_isco_rg := _isco_radius_rg(spin_a)
+	# ISCO specific energy for Kerr metric -> eta = 1 - E_isco
+	var sqrt_r := sqrt(r_isco_rg)
+	var r_3_2 := r_isco_rg * sqrt_r
+	var e_num := r_3_2 - 2.0 * sqrt_r + spin_a
+	var e_den := pow(r_isco_rg, 0.75) * sqrt(max(r_3_2 - 3.0 * sqrt_r + 2.0 * spin_a, 1e-9))
+	var eta_raw := 1.0 - e_num / max(e_den, 1e-9)
+	var eta_rad := 0.01 + (0.42 - 0.01) * sigmoid((eta_raw - 0.08) / 0.05)
+
+	# 3) Fueling proxy:
+	# 과도한 보수성 완화를 위해 core + tail 혼합(soft heavy-tail).
+	const LOG10_LAMBDA0: float = -2.8
+	var mass_term := log10_mbh - 8.0
+	var gas_term_soft := tanh(gas_centered)
+	var morph_term := morph_centered
+	var z_lambda := random_normal(galaxy_seed, HashPurpose.GALAXY_ACCRETION_EDD_RATIO, 0)
+	var u_tail := hash_float(galaxy_seed, HashPurpose.GALAXY_ACCRETION_EDD_RATIO, 3)
+	var sigma_lambda := 0.55
+	if u_tail < (0.10 + 0.10 * p_coherent):
+		sigma_lambda = 1.05
+
+	var log10_lambda := LOG10_LAMBDA0 \
+		+ 0.30 * gas_term_soft \
+		- 0.15 * mass_term \
+		+ 0.12 * morph_term \
+		+ sigma_lambda * z_lambda
+
+	# 4) Disk existence probability:
+	# union-form + 작은 LLAGN floor(과도 증가 방지)
+	var p_occ := sigmoid((log10_mbh - 5.7) / 0.55)
+	var p_fuel := sigmoid((log10_lambda + 3.0) / 0.70)
+	var p_union := 1.0 - (1.0 - p_occ) * (1.0 - p_fuel)
+	var p_llagn_floor := 0.08 * p_occ
+	var p_disk := 1.0 - (1.0 - p_union) * (1.0 - p_llagn_floor)
+	var u_exist := hash_float(galaxy_seed, HashPurpose.GALAXY_ACCRETION_EXISTENCE, 0)
+	var has_disk := u_exist < p_disk
+
+	return {
+		"has_disk": has_disk,
+		"p_disk": p_disk,
+		"m_bh_kg": m_bh_kg,
+		"log10_m_bh_msun": log10_mbh,
+		"spin_a": spin_a,
+		"eta_rad": eta_rad,
+		"log10_lambda_proxy": log10_lambda,
+		"p_coherent": p_coherent
+	}
