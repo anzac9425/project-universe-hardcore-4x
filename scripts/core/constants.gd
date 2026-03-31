@@ -875,9 +875,8 @@ static func sample_accretion_disk_from_galaxy(
 	var p_coherent_boost := 0.85 + 0.15 * p_coherent
 
 	var p_disk: float = clamp(
-		0.02 + 0.98 * p_bh_mass * p_fuel * p_coherent_boost,
-		0.0,
-		1.0
+		sigmoid((log10_lambda - (-1.70)) / 0.45),
+		0.02, 0.98
 	)
 
 	var u_disk := hash_float(galaxy_seed, HashPurpose.GALAXY_ACCRETION_EXISTENCE, 0)
@@ -921,10 +920,12 @@ static func sample_agn_properties(
 	galaxy_seed: int,
 	log10_m_bh_msun: float,
 	log10_lambda: float,
-	has_disk: bool,
+	has_bh: bool,        # ← has_disk 대신 has_bh로 gate
+	has_disk: bool,      # spectral mode 결정용
 	f_gas_: float
 ) -> Dictionary:
-	if not has_disk:
+	# has_bh가 없으면 비활성
+	if not has_bh:
 		return {
 			"log10_l_bol_lsun": NAN,
 			"log10_l_edd_lsun": NAN,
@@ -933,36 +934,45 @@ static func sample_agn_properties(
 			"agn_class":        "inactive"
 		}
 
-	# Eddington 광도
-	# L_Edd [erg/s] = 1.26e38 * (M_BH/Msun)
-	# log10(L_Edd / L_sun) = log10(1.26e38 / 3.828e33) + log10_m_bh_msun
-	# ≈ 4.517 + log10_m_bh_msun
+	# L_Edd, L_bol — disk 존재 무관하게 항상 계산
 	const LOG10_LEDD_LSUN_OFFSET: float = 4.517
 	var log10_l_edd_lsun := LOG10_LEDD_LSUN_OFFSET + log10_m_bh_msun
 	var log10_l_bol_lsun := log10_l_edd_lsun + log10_lambda
 
-	# 차폐 여부
-	var p_obs  := _agn_obscuration_prob(log10_lambda, f_gas_)
+	# 차폐(obscuration): torus 모델은 thin disk에서만 잘 적용됨
+	# ADAF 모드(has_disk=false)에서는 obscuration 확률 대폭 감소
+	var p_obs: float
+	if has_disk:
+		p_obs = _agn_obscuration_prob(log10_lambda, f_gas_)
+	else:
+		# ADAF/RIAF: 광학적으로 얇은 torus 구조 약함
+		p_obs = clamp(_agn_obscuration_prob(log10_lambda, f_gas_) * 0.25, 0.0, 0.3)
+
 	var u_obs  := hash_float(galaxy_seed, HashPurpose.GALAXY_AGN_OBSCURATION, 0)
 	var is_obs := u_obs < p_obs
 
-	# 분류 (광도 + Eddington 비율 기반)
-	# Quasar  : L_bol ≥ 10^12 L_sun
-	# Seyfert : log10_lambda ≥ −2
-	# LINER   : log10_lambda ≥ −4
-	# weak    : 나머지
-	var base_class: String
-	if log10_l_bol_lsun >= 12.0:
-		base_class = "quasar"
-	elif log10_lambda >= -2.0:
-		base_class = "seyfert"
-	elif log10_lambda >= -4.0:
-		base_class = "liner"
+	# 분류: thin disk 유무로 spectral mode 분기
+	var agn_class: String
+	if has_disk:
+		# 표준 thin disk 모드 — 기존 분류 그대로
+		if log10_l_bol_lsun >= 12.0:
+			agn_class = "quasar"
+		elif log10_lambda >= -2.0:
+			agn_class = "seyfert"
+		elif log10_lambda >= -4.0:
+			agn_class = "liner"
+		else:
+			agn_class = "weak"
+		agn_class += ("_2" if is_obs else "_1")
 	else:
-		base_class = "weak"
-
-	# Type 1 = 비차폐, Type 2 = 차폐
-	var agn_class := base_class + ("_2" if is_obs else "_1")
+		# ADAF/RIAF 모드 — radio-loud, 낮은 복사 효율
+		# Type 1/2 구분 없음 (torus 형성 안 됨)
+		if log10_lambda >= -2.5:
+			agn_class = "adaf_seyfert"   # 전이 영역, 드물게 존재
+		elif log10_lambda >= -4.0:
+			agn_class = "adaf_liner"
+		else:
+			agn_class = "adaf_weak"
 
 	return {
 		"log10_l_bol_lsun": log10_l_bol_lsun,
@@ -983,7 +993,8 @@ static func sample_jet_properties(
 	spin_a: float,
 	log10_lambda: float,
 	eta_rad: float,
-	has_disk: bool
+	has_bh: bool,    # ← has_disk 대신 has_bh로 gate
+	has_disk: bool   # ADAF 여부 판단용
 ) -> Dictionary:
 	var no_jet := {
 		"has_jet":           false,
@@ -994,7 +1005,7 @@ static func sample_jet_properties(
 		"jet_half_angle_deg":NAN
 	}
 
-	if not has_disk:
+	if not has_bh:           # ← 변경: disk 없어도 jet 가능
 		return no_jet
 
 	# ── 제트 존재 확률 ────────────────────────────────────────────
@@ -1004,8 +1015,12 @@ static func sample_jet_properties(
 	var mass_term  := sigmoid((log10_m_bh_msun - 7.5) / 1.0)
 	var adaf_boost := sigmoid((-log10_lambda - 2.2) / 0.6)
 
+	# ADAF 모드(has_disk=false)에서 radio-loud jet 형성 훨씬 유리
+	# Heckman & Best 2014: 낮은 Eddington 비율 → kinetic-mode feedback 우세
+	var mode_factor: float = 1.8 if not has_disk else 1.0
+
 	var p_jet: float = clamp(
-		0.02 + 0.70 * spin2 * mass_term * (0.35 + 0.65 * adaf_boost),
+		0.02 + 0.70 * spin2 * mass_term * (0.35 + 0.65 * adaf_boost) * mode_factor,
 		0.0, 1.0
 	)
 	var u_jet := hash_float(galaxy_seed, HashPurpose.GALAXY_JET, 0)

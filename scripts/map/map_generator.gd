@@ -17,7 +17,7 @@ static func generate(
 	var m_vir = m_vir_msun * C.SOLAR_MASS
 	galaxy.m_vir = m_vir
 
-	var z = 0.0
+	var z = 0.12895
 
 	var f_baryon = C.f_baryon(galaxy_seed, m_vir)
 	galaxy.f_baryon = f_baryon
@@ -141,6 +141,7 @@ static func generate(
 		galaxy_seed,
 		accretion_disk_dict["log10_m_bh_msun"],
 		accretion_disk_dict["log10_lambda_proxy"],
+		accretion_disk_dict["has_bh"],   # ← 변경
 		accretion_disk_dict["has_disk"],
 		f_gas
 	)
@@ -158,6 +159,7 @@ static func generate(
 		accretion_disk_dict["spin_a"],
 		accretion_disk_dict["log10_lambda_proxy"],
 		accretion_disk_dict["eta_rad"],
+		accretion_disk_dict["has_bh"],
 		accretion_disk_dict["has_disk"]
 	)
 	accretion_disk.has_jet            = jet_dict["has_jet"]
