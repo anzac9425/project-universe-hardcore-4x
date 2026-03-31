@@ -1,4 +1,4 @@
-은하 생성 절차 (코드 없이 순서만)
+은하 생성 절차
 
 1. 입력 파라미터 정의 (global seed, time)
 
@@ -41,7 +41,7 @@ Sigma: vyaus alfeh (Σ = 질량 / 면적), (Σ ≈ M_disk / (2π Rd²))
 10. 벌지 Sérsic index 및 반지름 샘플링 #
 
 
-11. 강착 원반(accretion disk) 존재 여부 및 파라미터 생성
+11. 강착 원반(accretion disk) 존재 여부 및 파라미터 생성 #
 
 
 12. 중심 블랙홀 질량 샘플링 (M–sigma 관계 기반 확률화)

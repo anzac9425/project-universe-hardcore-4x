@@ -78,9 +78,10 @@ enum HashPurpose {
 	GALAXY_BULGE_SIZE,
 	GALAXY_BH_MASS,
 	GALAXY_ACCRETION_SPIN,
-	GALAXY_ACCRETION_EDD_RATIO,
 	GALAXY_ACCRETION_MODE,
-	GALAXY_ACCRETION_EXISTENCE
+	GALAXY_ACCRETION_OUTER_RADIUS,
+	GALAXY_ACCRETION_EXISTENCE,
+	GALAXY_ACCRETION_EDD_RATIO
 }
 
 # f_baryon
@@ -111,11 +112,6 @@ static func f_baryon(galaxy_seed: int, galaxy_mass: float) -> float:
 	return sigmoid(x)
 	
 # f_gas
-static func _mu_gas(mass: float) -> float: # m_baryon
-	const a: float = -0.9
-	const m_1: float = 10.8
-
-	return a * (log_msun(mass) - m_1)
 	
 	
 static func Delta_physics(galaxy_seed: int) -> float:
@@ -130,19 +126,78 @@ static func Delta_physics(galaxy_seed: int) -> float:
 	var Z_sf     = get_Z(u3, u4)
 	var Z_morph  = get_Z(u5, u6)
 
-	return 0.40 * Z_lambda - 0.25 * Z_sf + 0.30 * Z_morph
+	return 0.28 * Z_lambda - 0.18 * Z_sf + 0.22 * Z_morph
 
 
-static func f_gas(galaxy_seed: int, m_baryon: float) -> float:
-	const SIGMA_G_SC: float = 0.1
-	
-	var u1 = hash_float(galaxy_seed, HashPurpose.GALAXY_GAS, 0)
-	var u2 = hash_float(galaxy_seed, HashPurpose.GALAXY_GAS, 1)
-	var Z_g = get_Z(u1, u2)
-	
-	var x = _mu_gas(m_baryon) + Delta_physics(galaxy_seed) + SIGMA_G_SC * Z_g
-	
-	return sigmoid(x)
+# GAS FRACTION RE-DESIGN
+# -------------------------------------------------------------------
+# Interpretation:
+# - f_gas = M_gas / (M_gas + M_star)
+# - This is a cold-gas proxy, not strictly HI-only or H2-only.
+# - Uses a self-consistent fixed-point solve because M_star depends on f_gas.
+
+static func _mu_gas_log10(
+	logMstar: float,
+	z: float,
+	delta_physics: float
+) -> float:
+	# Tuned to observed trends:
+	# - stronger gas fractions at lower M*
+	# - stronger gas fractions at higher z
+	# - mild boost from the existing "delta_physics" latent state
+	#
+	# This is a proxy relation, not a direct transcription of a single survey fit.
+
+	const LOG10_MU0: float = -0.40   # baseline at M*=10^10.5 Msun, z=0
+	const A_Z: float = 1.85          # between local xGASS and higher-z PHIBSS trends
+	const A_M: float = -0.55         # steeper than pure molecular scaling because this is cold gas
+	const A_DPHYS: float = 0.25      # mild structural / fueling boost
+
+	return LOG10_MU0 \
+		+ A_Z * logx(1.0 + z) \
+		+ A_M * (logMstar - 10.5) \
+		+ A_DPHYS * delta_physics
+
+
+static func f_gas(
+	galaxy_seed: int,
+	m_vir_kg: float,
+	f_baryon_: float,
+	z: float = 0.0,
+	delta_physics: float = 0.0
+) -> float:
+	const F_MIN: float = 0.01
+	const F_MAX: float = 0.95
+	const MIX: float = 0.35
+	const N_ITER: int = 15
+
+	if not is_finite(m_vir_kg) or m_vir_kg <= 0.0:
+		Log.error(107, "res://scripts/core/constants.gd")
+		return NAN
+
+	if not is_finite(f_baryon_) or f_baryon_ <= 0.0:
+		Log.error(108, "res://scripts/core/constants.gd")
+		return NAN
+
+	# deterministic scatter for gas content
+	var z_scatter := random_normal(galaxy_seed, HashPurpose.GALAXY_GAS, 0)
+
+	# initial guess
+	var f_gas_est := 0.45
+
+	for _i in range(N_ITER):
+		var m_star_kg: float = max(m_vir_kg * f_baryon_ * (1.0 - f_gas_est), 1e-12)
+		var logMstar := logx(m_star_kg / SOLAR_MASS)
+
+		var log10_mu := _mu_gas_log10(logMstar, z, delta_physics) \
+			+ 0.20 * z_scatter
+
+		var mu := pow(10.0, log10_mu)
+		var f_target: float = clamp(mu / (1.0 + mu), F_MIN, F_MAX)
+
+		f_gas_est = lerp(f_gas_est, f_target, MIX)
+
+	return clamp(f_gas_est, F_MIN, F_MAX)
 	
 
 static func f_star_halo(galaxy_seed: int, m_star: float, f_gas_: float) -> float:
@@ -172,36 +227,37 @@ static func f_bulge_disk(
 	delta_physics: float,
 	f_star_halo_: float
 ) -> Dictionary:
-	
 	var u1 = hash_float(galaxy_seed, HashPurpose.GALAXY_MORPHOLOGY, 0)
 	var u2 = hash_float(galaxy_seed, HashPurpose.GALAXY_MORPHOLOGY, 1)
 	var Z = get_Z(u1, u2)
 
 	var logM = log_msun(m_star)
-	var m_n = logM - 10.5
 
-	var gas_logit = logit(f_gas_)
+	# Observational anchors:
+	# - intermediate-mass local SF galaxies: B/T typically below ~0.3
+	# - massive SF galaxies above ~1e11 Msun: B/T ~0.4-0.5
+	# - B/T decreases as galaxies move upward in the SFMS / become more gas-rich
+	var mass_term = tanh((logM - 10.9) / 0.75)
+	var gas_term = tanh((logit(f_gas_) + 0.4) / 1.0)
+	var phys_term = tanh(delta_physics / 0.6)
 
-	# morphology score
-	const B0 = -0.2
-	const B1 = 0.7 # mass
-	const B2 = 0.9 # gas (disk bias → minus later)
-	const B3 = 0.5 # delta_physics
-	const SIGMA = 0.4
+	const B0: float = -1.05
+	const B1: float = 0.45
+	const B2: float = 0.55
+	const B3: float = -0.20
+	const SIGMA: float = 0.25
 
 	var s_bulge = B0 \
-		+ B1 * m_n \
-		- B2 * gas_logit \
-		+ B3 * delta_physics \
+		+ B1 * mass_term \
+		- B2 * gas_term \
+		+ B3 * phys_term \
 		+ SIGMA * Z
 
 	var p_bulge = sigmoid(s_bulge)
-	var p_disk = 1.0 - p_bulge
 
 	var f_remain = 1.0 - f_star_halo_
-
 	var f_bulge = f_remain * p_bulge
-	var f_disk  = f_remain * p_disk
+	var f_disk  = f_remain * (1.0 - p_bulge)
 
 	return {
 		"f_bulge": f_bulge,
@@ -645,12 +701,29 @@ static func sample_bulge_profile_from_galaxy(
 
 # ACCRETION DISK (SMBH)
 static func _isco_radius_rg(spin_a: float) -> float:
-	# Kerr ISCO radius in units of r_g = GM/c^2 (prograde branch).
-	var a := clamp(spin_a, -0.998, 0.998)
-	var z1 := 1.0 + pow(1.0 - a * a, 1.0 / 3.0) * (pow(1.0 + a, 1.0 / 3.0) + pow(1.0 - a, 1.0 / 3.0))
+	# Kerr ISCO radius in units of r_g = GM/c^2.
+	# Spin sign controls whether the orbit is prograde or retrograde.
+	var a: float = clamp(spin_a, -0.998, 0.998)
+
+	var z1 := 1.0 \
+		+ pow(1.0 - a * a, 1.0 / 3.0) \
+		* (pow(1.0 + a, 1.0 / 3.0) + pow(1.0 - a, 1.0 / 3.0))
 	var z2 := sqrt(3.0 * a * a + z1 * z1)
 	var sign_a := 1.0 if a >= 0.0 else -1.0
+
 	return 3.0 + z2 - sign_a * sqrt((3.0 - z1) * (3.0 + z1 + 2.0 * z2))
+
+
+static func _smoothstep01(x: float) -> float:
+	x = clamp(x, 0.0, 1.0)
+	return x * x * (3.0 - 2.0 * x)
+
+
+static func _bh_existence_probability(log10_mbulge: float, f_bulge_: float) -> float:
+	# Dwarf / pseudobulge 계열에서 BH가 약하거나 없을 가능성을 반영
+	var p_mass := sigmoid((log10_mbulge - 7.6) / 0.7)
+	var p_bulge := sigmoid((f_bulge_ - 0.12) / 0.09)
+	return clamp(0.02 + 0.98 * p_mass * p_bulge, 0.0, 1.0)
 
 
 static func sample_accretion_disk_from_galaxy(
@@ -659,65 +732,110 @@ static func sample_accretion_disk_from_galaxy(
 	f_baryon_: float,
 	f_gas_: float,
 	f_bulge_: float,
-	s_morph: float
+	s_morph: float,
+	z: float = 0.0
 ) -> Dictionary:
-	# 1) SMBH mass prior from bulge mass:
-	# Kormendy & Ho (2013)-like anchor
-	# log10(Mbh/Msun) = 8.69 + 1.16*(log10(Mbulge/Msun)-11) + scatter
+	# 1) SMBH mass prior from bulge mass
+	# - stronger suppression for pseudobulges
+	# - larger scatter for pseudobulge / low-mass hosts
+	# - weak redshift trend
+
 	const ALPHA_BH: float = 8.69
 	const BETA_BH: float = 1.16
-	const SIGMA_BH_DEX: float = 0.34
+	const GAMMA_Z: float = 0.25
+
+	const SIGMA_BH_CLASSICAL: float = 0.28
+	const SIGMA_BH_PSEUDO: float = 0.55
 
 	var m_star_total_kg := m_vir_kg * f_baryon_ * (1.0 - f_gas_)
-	var m_bulge_kg := m_star_total_kg * clamp(f_bulge_, 1e-6, 1.0)
+	var m_bulge_kg: float = max(m_star_total_kg * clamp(f_bulge_, 1e-6, 1.0), 1e-12)
 	var log10_mbulge := logx(m_bulge_kg / SOLAR_MASS)
 
+	# BH existence probability
+	var p_bh_exist := _bh_existence_probability(log10_mbulge, f_bulge_)
+	var u_exist := hash_float(galaxy_seed, HashPurpose.GALAXY_BH_MASS, 1)
+	var has_bh := u_exist < p_bh_exist
+
+	if not has_bh:
+		return {
+			"has_bh": false,
+			"p_bh_exist": p_bh_exist,
+
+			"has_disk": false,
+			"p_disk": 0.0,
+			"p_bh_mass": 0.0,
+			"p_fuel": 0.0,
+
+			"m_bh_kg": 0.0,
+			"log10_m_bh_msun": NAN,
+
+			"spin_a": 0.0,
+			"eta_rad": 0.0,
+			"log10_lambda_proxy": NAN,
+			"p_coherent": 0.0,
+			"r_out_rg": 0.0
+		}
+
 	var z_bh := random_normal(galaxy_seed, HashPurpose.GALAXY_BH_MASS, 0)
-	# Pseudobulge/compact-disk 계열을 완만히 반영하는 soft offset.
-	# (단일 앵커 고정 문제 완화)
-	var p_pseudobulge := sigmoid((0.22 - clamp(f_bulge_, 1e-6, 1.0)) / 0.08)
-	var delta_pseudo_dex := -0.45 * p_pseudobulge
-	var log10_mbh := ALPHA_BH + BETA_BH * (log10_mbulge - 11.0) + delta_pseudo_dex + SIGMA_BH_DEX * z_bh
+
+	# Pseudobulge correction
+	var p_pseudobulge := sigmoid((0.22 - clamp(f_bulge_, 1e-6, 1.0)) / 0.10)
+	var delta_pseudo_dex := -0.60 * p_pseudobulge
+
+	# Low-mass hosts get slightly larger intrinsic scatter
+	var sigma_bh_dex: float = lerp(SIGMA_BH_CLASSICAL, SIGMA_BH_PSEUDO, p_pseudobulge)
+	sigma_bh_dex += 0.05 * clamp(10.0 - log10_mbulge, 0.0, 3.0) / 3.0
+
+	var log10_mbh := ALPHA_BH \
+		+ BETA_BH * (log10_mbulge - 11.0) \
+		+ GAMMA_Z * logx(max(1.0 + z, 1e-6)) \
+		+ delta_pseudo_dex \
+		+ sigma_bh_dex * z_bh
+
 	var m_bh_kg := pow(10.0, log10_mbh) * SOLAR_MASS
 
-	# 2) Spin mixture:
-	# coherent vs chaotic fueling을 soft mixture로 반영.
+	# 2) Spin mixture
 	const A_MIN: float = -0.998
 	const A_MAX: float = 0.998
-	var gas_centered := clamp((f_gas_ - 0.20) / 0.20, -2.0, 2.0)
+
+	var gas_centered: float = clamp((f_gas_ - 0.20) / 0.20, -2.0, 2.0)
 	var morph_centered := sigmoid(s_morph) - 0.5
-	var p_coherent := sigmoid(0.95 * gas_centered - 1.10 * morph_centered - 0.25 * (log10_mbh - 8.0))
-	var u_mode := hash_float(galaxy_seed, HashPurpose.GALAXY_ACCRETION_MODE, 0)
+	var p_coherent := sigmoid(0.75 * gas_centered - 1.10 * morph_centered - 0.25 * (log10_mbh - 8.0))
+
 	var z_spin := random_normal(galaxy_seed, HashPurpose.GALAXY_ACCRETION_SPIN, 0)
+	var z_spin_skew := random_normal(galaxy_seed, HashPurpose.GALAXY_ACCRETION_MODE, 1)
 
-	var spin_center := -0.05
-	var spin_sigma := 0.95
-	if u_mode < p_coherent:
-		spin_center = 0.62
-		spin_sigma = 0.55
+	var spin_center: float = lerp(-0.12, 0.62, p_coherent)
+	var spin_sigma: float = lerp(0.9, 0.4, p_coherent)
+	var retro_tail: float = -0.15 * (1.0 - p_coherent) * z_spin_skew
 
-	var x_spin := logit((spin_center - A_MIN) / (A_MAX - A_MIN)) + spin_sigma * z_spin
+	var x_spin := logit((spin_center - A_MIN) / (A_MAX - A_MIN)) \
+		+ spin_sigma * z_spin \
+		+ retro_tail
+
 	var spin_a := A_MIN + (A_MAX - A_MIN) * sigmoid(x_spin)
 
 	var r_isco_rg := _isco_radius_rg(spin_a)
-	# ISCO specific energy for Kerr metric -> eta = 1 - E_isco
 	var sqrt_r := sqrt(r_isco_rg)
-	var r_3_2 := r_isco_rg * sqrt_r
-	var e_num := r_3_2 - 2.0 * sqrt_r + spin_a
-	var e_den := pow(r_isco_rg, 0.75) * sqrt(max(r_3_2 - 3.0 * sqrt_r + 2.0 * spin_a, 1e-9))
-	var eta_raw := 1.0 - e_num / max(e_den, 1e-9)
-	var eta_rad := 0.01 + (0.42 - 0.01) * sigmoid((eta_raw - 0.08) / 0.05)
+	var r_3_2: float = r_isco_rg * sqrt_r
 
-	# 3) Fueling proxy:
-	# 과도한 보수성 완화를 위해 core + tail 혼합(soft heavy-tail).
+	var e_num: float = r_3_2 - 2.0 * sqrt_r + spin_a
+	var e_den := pow(r_isco_rg, 0.75) * sqrt(max(r_3_2 - 3.0 * sqrt_r + 2.0 * spin_a, 1e-9))
+	var eta_raw: float = 1.0 - e_num / max(e_den, 1e-9)
+	var eta_rad: float = clamp(eta_raw, 0.038, 0.42)
+	#eta_rad *= 0.9
+
+	# 3) Fueling proxy
 	const LOG10_LAMBDA0: float = -2.8
+
 	var mass_term := log10_mbh - 8.0
 	var gas_term_soft := tanh(gas_centered)
 	var morph_term := morph_centered
 	var z_lambda := random_normal(galaxy_seed, HashPurpose.GALAXY_ACCRETION_EDD_RATIO, 0)
 	var u_tail := hash_float(galaxy_seed, HashPurpose.GALAXY_ACCRETION_EDD_RATIO, 3)
+
 	var sigma_lambda := 0.55
-	if u_tail < (0.10 + 0.10 * p_coherent):
+	if u_tail < (0.15 + 0.15 * p_coherent):
 		sigma_lambda = 1.05
 
 	var log10_lambda := LOG10_LAMBDA0 \
@@ -726,23 +844,56 @@ static func sample_accretion_disk_from_galaxy(
 		+ 0.12 * morph_term \
 		+ sigma_lambda * z_lambda
 
-	# 4) Disk existence probability:
-	# union-form + 작은 LLAGN floor(과도 증가 방지)
-	var p_occ := sigmoid((log10_mbh - 5.7) / 0.55)
-	var p_fuel := sigmoid((log10_lambda + 3.0) / 0.70)
-	var p_union := 1.0 - (1.0 - p_occ) * (1.0 - p_fuel)
-	var p_llagn_floor := 0.08 * p_occ
-	var p_disk := 1.0 - (1.0 - p_union) * (1.0 - p_llagn_floor)
-	var u_exist := hash_float(galaxy_seed, HashPurpose.GALAXY_ACCRETION_EXISTENCE, 0)
-	var has_disk := u_exist < p_disk
+	# 4) Outer radius prior
+	const LOG10_ROUT_MAX: float = 5.5
+	const LOG10_ROUT_BASE: float = 3.35
+	const SIGMA_LOG10_ROUT: float = 0.18
+
+	var log10_mbh_clamped: float = clamp(log10_mbh, 5.0, 10.0)
+	var lambda_term: float = clamp(log10_lambda + 2.8, -1.5, 1.5)
+	var z_rout := random_normal(galaxy_seed, HashPurpose.GALAXY_ACCRETION_OUTER_RADIUS, 0)
+
+	var log10_r_out_raw := LOG10_ROUT_BASE \
+		+ 0.60 * (8.0 - log10_mbh_clamped) \
+		+ 0.35 * lambda_term \
+		+ SIGMA_LOG10_ROUT * z_rout
+
+	var r_out_min := 5.0 * r_isco_rg
+	var log10_r_out_min := logx(max(r_out_min, 1e-9))
+	var log10_r_out_max := LOG10_ROUT_MAX
+
+	var t: float = (log10_r_out_raw - log10_r_out_min) / max(log10_r_out_max - log10_r_out_min, 1e-6)
+	var log10_r_out: float = lerp(log10_r_out_min, log10_r_out_max, _smoothstep01(t))
+	var r_out_rg := pow(10.0, log10_r_out)
+
+	# 5) Disk existence probability
+	var p_bh_mass := sigmoid((log10_mbh - 6.2) / 0.70)
+	var p_fuel := sigmoid((log10_lambda + 2.4) / 0.60)
+	var p_coherent_boost := 0.85 + 0.15 * p_coherent
+
+	var p_disk: float = clamp(
+		0.02 + 0.98 * p_bh_mass * p_fuel * p_coherent_boost,
+		0.0,
+		1.0
+	)
+
+	var u_disk := hash_float(galaxy_seed, HashPurpose.GALAXY_ACCRETION_EXISTENCE, 0)
+	var has_disk := u_disk < p_disk
 
 	return {
+		"has_bh": true,
+		"p_bh_exist": p_bh_exist,
+
 		"has_disk": has_disk,
 		"p_disk": p_disk,
+		"p_bh_mass": p_bh_mass,
+		"p_fuel": p_fuel,
+
 		"m_bh_kg": m_bh_kg,
 		"log10_m_bh_msun": log10_mbh,
 		"spin_a": spin_a,
 		"eta_rad": eta_rad,
 		"log10_lambda_proxy": log10_lambda,
-		"p_coherent": p_coherent
+		"p_coherent": p_coherent,
+		"r_out_rg": r_out_rg
 	}
