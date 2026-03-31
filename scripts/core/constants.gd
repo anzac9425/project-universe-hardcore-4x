@@ -81,7 +81,10 @@ enum HashPurpose {
 	GALAXY_ACCRETION_MODE,
 	GALAXY_ACCRETION_OUTER_RADIUS,
 	GALAXY_ACCRETION_EXISTENCE,
-	GALAXY_ACCRETION_EDD_RATIO
+	GALAXY_ACCRETION_EDD_RATIO,
+	GALAXY_AGN_OBSCURATION,   # Type 1/2 차폐 샘플링
+	GALAXY_JET,               # 제트 존재 여부 + 산포
+	GALAXY_JET_LORENTZ        # 로렌츠 인수 산포
 }
 
 # f_baryon
@@ -723,7 +726,7 @@ static func _bh_existence_probability(log10_mbulge: float, f_bulge_: float) -> f
 	# Dwarf / pseudobulge 계열에서 BH가 약하거나 없을 가능성을 반영
 	var p_mass := sigmoid((log10_mbulge - 7.6) / 0.7)
 	var p_bulge := sigmoid((f_bulge_ - 0.12) / 0.09)
-	return clamp(0.02 + 0.98 * p_mass * p_bulge, 0.0, 1.0)
+	return clamp(0.001 + 0.98 * p_mass * p_bulge, 0.0, 1.0)
 
 
 static func sample_accretion_disk_from_galaxy(
@@ -742,7 +745,7 @@ static func sample_accretion_disk_from_galaxy(
 
 	const ALPHA_BH: float = 8.69
 	const BETA_BH: float = 1.16
-	const GAMMA_Z: float = 0.25
+	const GAMMA_Z: float = 0.5
 
 	const SIGMA_BH_CLASSICAL: float = 0.28
 	const SIGMA_BH_PSEUDO: float = 0.55
@@ -780,7 +783,7 @@ static func sample_accretion_disk_from_galaxy(
 
 	# Pseudobulge correction
 	var p_pseudobulge := sigmoid((0.22 - clamp(f_bulge_, 1e-6, 1.0)) / 0.10)
-	var delta_pseudo_dex := -0.60 * p_pseudobulge
+	var delta_pseudo_dex := -1 * p_pseudobulge
 
 	# Low-mass hosts get slightly larger intrinsic scatter
 	var sigma_bh_dex: float = lerp(SIGMA_BH_CLASSICAL, SIGMA_BH_PSEUDO, p_pseudobulge)
@@ -896,4 +899,180 @@ static func sample_accretion_disk_from_galaxy(
 		"log10_lambda_proxy": log10_lambda,
 		"p_coherent": p_coherent,
 		"r_out_rg": r_out_rg
+	}
+
+# ─────────────────────────────────────────────────────────────────
+# AGN PROPERTIES  (Step 13)
+# ─────────────────────────────────────────────────────────────────
+
+static func _agn_obscuration_prob(
+	log10_lambda: float,
+	f_gas_: float
+) -> float:
+	# Receding torus model (Lawrence 1991, Hopkins et al. 2007)
+	# 높은 Eddington 비율 → 강한 복사압 → torus 개구부 확장 → Type 1 비율 증가
+	# 가스 분율이 높을수록 차폐 확률 상승
+	var lambda_term := sigmoid((-log10_lambda - 1.5) / 0.8)
+	var gas_boost: float = clamp(0.3 + 0.7 * f_gas_, 0.3, 1.0)
+	return clamp(0.03 + 0.65 * lambda_term * gas_boost, 0.0, 1.0)
+
+
+static func sample_agn_properties(
+	galaxy_seed: int,
+	log10_m_bh_msun: float,
+	log10_lambda: float,
+	has_disk: bool,
+	f_gas_: float
+) -> Dictionary:
+	if not has_disk:
+		return {
+			"log10_l_bol_lsun": NAN,
+			"log10_l_edd_lsun": NAN,
+			"is_obscured":      false,
+			"p_obscured":       0.0,
+			"agn_class":        "inactive"
+		}
+
+	# Eddington 광도
+	# L_Edd [erg/s] = 1.26e38 * (M_BH/Msun)
+	# log10(L_Edd / L_sun) = log10(1.26e38 / 3.828e33) + log10_m_bh_msun
+	# ≈ 4.517 + log10_m_bh_msun
+	const LOG10_LEDD_LSUN_OFFSET: float = 4.517
+	var log10_l_edd_lsun := LOG10_LEDD_LSUN_OFFSET + log10_m_bh_msun
+	var log10_l_bol_lsun := log10_l_edd_lsun + log10_lambda
+
+	# 차폐 여부
+	var p_obs  := _agn_obscuration_prob(log10_lambda, f_gas_)
+	var u_obs  := hash_float(galaxy_seed, HashPurpose.GALAXY_AGN_OBSCURATION, 0)
+	var is_obs := u_obs < p_obs
+
+	# 분류 (광도 + Eddington 비율 기반)
+	# Quasar  : L_bol ≥ 10^12 L_sun
+	# Seyfert : log10_lambda ≥ −2
+	# LINER   : log10_lambda ≥ −4
+	# weak    : 나머지
+	var base_class: String
+	if log10_l_bol_lsun >= 12.0:
+		base_class = "quasar"
+	elif log10_lambda >= -2.0:
+		base_class = "seyfert"
+	elif log10_lambda >= -4.0:
+		base_class = "liner"
+	else:
+		base_class = "weak"
+
+	# Type 1 = 비차폐, Type 2 = 차폐
+	var agn_class := base_class + ("_2" if is_obs else "_1")
+
+	return {
+		"log10_l_bol_lsun": log10_l_bol_lsun,
+		"log10_l_edd_lsun": log10_l_edd_lsun,
+		"is_obscured": is_obs,
+		"p_obscured": p_obs,
+		"agn_class": agn_class
+	}
+
+
+# ─────────────────────────────────────────────────────────────────
+# JET PROPERTIES  (Step 14)
+# ─────────────────────────────────────────────────────────────────
+
+static func sample_jet_properties(
+	galaxy_seed: int,
+	log10_m_bh_msun: float,
+	spin_a: float,
+	log10_lambda: float,
+	eta_rad: float,
+	has_disk: bool
+) -> Dictionary:
+	var no_jet := {
+		"has_jet":           false,
+		"p_jet":             0.0,
+		"log10_p_jet_w":     NAN,
+		"jet_morphology":    "none",
+		"jet_lorentz":       NAN,
+		"jet_half_angle_deg":NAN
+	}
+
+	if not has_disk:
+		return no_jet
+
+	# ── 제트 존재 확률 ────────────────────────────────────────────
+	# Blandford-Znajek 메커니즘: 제트 출력 ∝ a²
+	# ADAF/RIAF 저 Eddington 모드에서 radio-loud 비율 상승 (Heckman & Best 2014)
+	var spin2      := spin_a * spin_a
+	var mass_term  := sigmoid((log10_m_bh_msun - 7.5) / 1.0)
+	var adaf_boost := sigmoid((-log10_lambda - 2.2) / 0.6)
+
+	var p_jet: float = clamp(
+		0.02 + 0.70 * spin2 * mass_term * (0.35 + 0.65 * adaf_boost),
+		0.0, 1.0
+	)
+	var u_jet := hash_float(galaxy_seed, HashPurpose.GALAXY_JET, 0)
+
+	if u_jet >= p_jet:
+		no_jet["p_jet"] = p_jet
+		return no_jet
+
+	# ── 제트 전력 (Blandford-Znajek 1977) ─────────────────────────
+	# P_BZ ≈ κ · a² · (M_dot · c²)
+	# κ ≈ 0.044  (Tchekhovskoy et al. 2010 평균; MAD 한계에서 ~1)
+	# M_dot · c² = λ · L_Edd / η_rad
+	# L_Edd [W] = 1.26e31 · (M_BH/Msun)  →  log10 offset = 31.100
+	const LOG10_L_EDD_W_OFFSET: float = 31.100  # log10(1.26e31)
+	const LOG10_KAPPA:          float = -1.357   # log10(0.044)
+
+	var log10_l_edd_w := LOG10_L_EDD_W_OFFSET + log10_m_bh_msun
+	var eta: float = clamp(eta_rad, 0.03, 0.42)
+	var spin_term: float = max(spin_a * spin_a, 1e-4)
+	var log10_mdot_c2_w := log10_l_edd_w + log10_lambda - logx(eta)
+	var log10_p_bz_w := LOG10_KAPPA \
+							+ logx(spin_term) \
+							+ log10_mdot_c2_w
+
+	# 자기장 환경 불확실성 산포 (σ ≈ 0.35 dex)
+	var z_jet         := random_normal(galaxy_seed, HashPurpose.GALAXY_JET, 1)
+	var log10_p_jet_w  := log10_p_bz_w + 0.35 * z_jet
+
+	# ── FRI / FRII 분류 (Fanaroff & Riley 1974) ───────────────────
+	# 볼로메트릭 제트 전력 기준:
+	# FRII ≥ 10^38 W  : edge-brightened, 핫스팟, 강한 충격파
+	# FRI  ≥ 10^35.5 W: center-brightened, 플룸, 난류 혼합
+	# compact < 10^35.5 W: GPS/CSO, sub-kpc 스케일
+	var jet_morphology: String
+	if log10_p_jet_w >= 38.0:
+		jet_morphology = "FRII"
+	elif log10_p_jet_w >= 35.5:
+		jet_morphology = "FRI"
+	else:
+		jet_morphology = "compact"
+
+	# ── 로렌츠 인수 (lognormal 산포) ─────────────────────────────
+	var gamma_base: float = 2.0
+	match jet_morphology:
+		"FRII":
+			gamma_base = 10.0
+		"FRI":
+			gamma_base = 3.5
+		_:
+			gamma_base = 2.0
+
+	var z_gamma := random_normal(galaxy_seed, HashPurpose.GALAXY_JET_LORENTZ, 0)
+	var jet_lorentz: float = clamp(gamma_base * exp(0.40 * z_gamma), 1.5, 30.0)
+
+	# ── 반개구각 ─────────────────────────────────────────────────
+	# θ ≈ 1/Γ [rad]; 관측 제트는 약간 더 넓음
+	var z_theta := random_normal(galaxy_seed, HashPurpose.GALAXY_JET_LORENTZ, 2)
+	var jet_half_angle_deg: float = clamp(
+		rad_to_deg(1.0 / jet_lorentz) * exp(0.10 * z_theta),
+		0.5, 20.0
+	)
+
+	return {
+		"has_jet": true,
+		"p_jet": p_jet,
+		"log10_p_jet_w": log10_p_jet_w,
+		"jet_morphology": jet_morphology,
+		"jet_lorentz": jet_lorentz,
+		"jet_half_angle_deg": jet_half_angle_deg
 	}

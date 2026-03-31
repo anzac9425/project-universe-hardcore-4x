@@ -48,15 +48,15 @@ static func generate(
 		return null
 
 	var halo := HaloData.new()
-	halo.m200c              = halo_dict["m200c"]
-	halo.c200               = halo_dict["c200"]
-	halo.r200c_kpc          = halo_dict["r200c_kpc"]
-	halo.rs_kpc             = halo_dict["rs_kpc"]
-	halo.rho_s_msun_kpc3    = halo_dict["rho_s_msun_kpc3"]
-	halo.mvir_pred          = halo_dict["mvir_pred"]
-	halo.cvir               = halo_dict["cvir"]
-	halo.rvir_kpc           = halo_dict["rvir_kpc"]
-	halo.delta_vir          = halo_dict["delta_vir"]
+	halo.m200c = halo_dict["m200c"]
+	halo.c200 = halo_dict["c200"]
+	halo.r200c_kpc = halo_dict["r200c_kpc"]
+	halo.rs_kpc = halo_dict["rs_kpc"]
+	halo.rho_s_msun_kpc3 = halo_dict["rho_s_msun_kpc3"]
+	halo.mvir_pred = halo_dict["mvir_pred"]
+	halo.cvir = halo_dict["cvir"]
+	halo.rvir_kpc = halo_dict["rvir_kpc"]
+	halo.delta_vir = halo_dict["delta_vir"]
 	halo.rho_crit_msun_kpc3 = halo_dict["rho_crit_msun_kpc3"]
 	galaxy.halo = halo
 
@@ -69,15 +69,15 @@ static func generate(
 		return null
 
 	var disk_size := DiskSize.new()
-	disk_size.r_eff_m            = disk_size_dict["r_eff_m"]
-	disk_size.r_d_m              = disk_size_dict["r_d_m"]
-	disk_size.r_eff_kpc          = disk_size_dict["r_eff_kpc"]
-	disk_size.r_d_kpc            = disk_size_dict["r_d_kpc"]
-	disk_size.log10_r_eff_kpc    = disk_size_dict["log10_r_eff_kpc"]
-	disk_size.log10_r_d_kpc      = disk_size_dict["log10_r_d_kpc"]
+	disk_size.r_eff_m = disk_size_dict["r_eff_m"]
+	disk_size.r_d_m  = disk_size_dict["r_d_m"]
+	disk_size.r_eff_kpc = disk_size_dict["r_eff_kpc"]
+	disk_size.r_d_kpc = disk_size_dict["r_d_kpc"]
+	disk_size.log10_r_eff_kpc = disk_size_dict["log10_r_eff_kpc"]
+	disk_size.log10_r_d_kpc = disk_size_dict["log10_r_d_kpc"]
 	disk_size.r_eff_halo_check_m = disk_size_dict["r_eff_halo_check_m"]
-	disk_size.r_d_halo_check_m   = disk_size_dict["r_d_halo_check_m"]
-	disk_size.sigma_dex          = disk_size_dict["sigma_dex"]
+	disk_size.r_d_halo_check_m = disk_size_dict["r_d_halo_check_m"]
+	disk_size.sigma_dex = disk_size_dict["sigma_dex"]
 	galaxy.disk_size = disk_size
 
 	# --- Disk thickness ---
@@ -89,10 +89,10 @@ static func generate(
 		return null
 
 	var disk_thickness := DiskThickness.new()
-	disk_thickness.z0_m        = disk_thickness_dict["z0_m"]
-	disk_thickness.z0_kpc      = disk_thickness_dict["z0_kpc"]
+	disk_thickness.z0_m = disk_thickness_dict["z0_m"]
+	disk_thickness.z0_kpc = disk_thickness_dict["z0_kpc"]
 	disk_thickness.q_z0_over_rd = disk_thickness_dict["q_z0_over_rd"]
-	disk_thickness.sigma_logit  = disk_thickness_dict["sigma_logit"]
+	disk_thickness.sigma_logit = disk_thickness_dict["sigma_logit"]
 	galaxy.disk_thickness = disk_thickness
 
 	# --- Bulge profile ---
@@ -104,13 +104,13 @@ static func generate(
 		return null
 
 	var bulge_profile := BulgeProfile.new()
-	bulge_profile.n_sersic         = bulge_profile_dict["n_sersic"]
-	bulge_profile.r_eff_kpc        = bulge_profile_dict["r_eff_kpc"]
-	bulge_profile.r_eff_m          = bulge_profile_dict["r_eff_m"]
-	bulge_profile.log10_r_eff_kpc  = bulge_profile_dict["log10_r_eff_kpc"]
-	bulge_profile.sigma_dex_re     = bulge_profile_dict["sigma_dex_re"]
-	bulge_profile.sigma_logit_n    = bulge_profile_dict["sigma_logit_n"]
-	bulge_profile.halo_soft_prior  = bulge_profile_dict["halo_soft_prior"]
+	bulge_profile.n_sersic = bulge_profile_dict["n_sersic"]
+	bulge_profile.r_eff_kpc = bulge_profile_dict["r_eff_kpc"]
+	bulge_profile.r_eff_m = bulge_profile_dict["r_eff_m"]
+	bulge_profile.log10_r_eff_kpc = bulge_profile_dict["log10_r_eff_kpc"]
+	bulge_profile.sigma_dex_re = bulge_profile_dict["sigma_dex_re"]
+	bulge_profile.sigma_logit_n = bulge_profile_dict["sigma_logit_n"]
+	bulge_profile.halo_soft_prior = bulge_profile_dict["halo_soft_prior"]
 	galaxy.bulge_profile = bulge_profile
 
 	# --- Accretion disk (SMBH) ---
@@ -135,6 +135,37 @@ static func generate(
 	accretion_disk.p_coherent           = accretion_disk_dict["p_coherent"]
 	accretion_disk.r_out_rg             = accretion_disk_dict["r_out_rg"]
 	galaxy.accretion_disk = accretion_disk
+	
+	# --- AGN properties ---
+	var agn_dict := C.sample_agn_properties(
+		galaxy_seed,
+		accretion_disk_dict["log10_m_bh_msun"],
+		accretion_disk_dict["log10_lambda_proxy"],
+		accretion_disk_dict["has_disk"],
+		f_gas
+	)
+	
+	accretion_disk.log10_l_bol_lsun = agn_dict["log10_l_bol_lsun"]
+	accretion_disk.log10_l_edd_lsun = agn_dict["log10_l_edd_lsun"]
+	accretion_disk.is_obscured = agn_dict["is_obscured"]
+	accretion_disk.p_obscured = agn_dict["p_obscured"]
+	accretion_disk.agn_class = agn_dict["agn_class"]
+
+	# --- Jet properties ---
+	var jet_dict := C.sample_jet_properties(
+		galaxy_seed,
+		accretion_disk_dict["log10_m_bh_msun"],
+		accretion_disk_dict["spin_a"],
+		accretion_disk_dict["log10_lambda_proxy"],
+		accretion_disk_dict["eta_rad"],
+		accretion_disk_dict["has_disk"]
+	)
+	accretion_disk.has_jet            = jet_dict["has_jet"]
+	accretion_disk.p_jet              = jet_dict["p_jet"]
+	accretion_disk.log10_p_jet_w      = jet_dict["log10_p_jet_w"]
+	accretion_disk.jet_morphology     = jet_dict["jet_morphology"]
+	accretion_disk.jet_lorentz        = jet_dict["jet_lorentz"]
+	accretion_disk.jet_half_angle_deg = jet_dict["jet_half_angle_deg"]
 
 	_log_galaxy(galaxy)
 	return galaxy
@@ -144,37 +175,43 @@ static func _log_galaxy(galaxy: GalaxyData) -> void:
 	if not OS.is_debug_build():
 		return
 	Log.info("=== GalaxyData (seed: %s) ===" % galaxy.galaxy_seed)
-	Log.info("  m_vir / MILKYWAY: %f"  % (galaxy.m_vir / C.MILKYWAY_MASS))
-	Log.info("  f_baryon: %f"  % galaxy.f_baryon)
-	Log.info("  f_gas: %f "  % galaxy.f_gas)
-	Log.info("  f_bulge: %f"  % galaxy.f_bulge)
-	Log.info("  f_disk: %f"  % galaxy.f_disk)
-	Log.info("  f_star_halo: %f"  % galaxy.f_star_halo)
+	Log.info("  m_vir / MILKYWAY: %s" % (galaxy.m_vir / C.MILKYWAY_MASS))
+	Log.info("  f_baryon: %s" % galaxy.f_baryon)
+	Log.info("  f_gas: %s " % galaxy.f_gas)
+	Log.info("  f_bulge: %s" % galaxy.f_bulge)
+	Log.info("  f_disk: %s" % galaxy.f_disk)
+	Log.info("  f_star_halo: %s" % galaxy.f_star_halo)
 	Log.info("  --- halo ---")
-	Log.info("  m200c: %f"  % galaxy.halo.m200c)
-	Log.info("  c200             : %f"  % galaxy.halo.c200)
-	Log.info("  r200c_kpc        : %f"  % galaxy.halo.r200c_kpc)
-	Log.info("  rs_kpc           : %f"  % galaxy.halo.rs_kpc)
-	Log.info("  rho_s            : %f"  % galaxy.halo.rho_s_msun_kpc3)
-	Log.info("  mvir_pred        : %f"  % galaxy.halo.mvir_pred)
-	Log.info("  cvir             : %f"  % galaxy.halo.cvir)
-	Log.info("  rvir_kpc         : %f"  % galaxy.halo.rvir_kpc)
-	Log.info("  delta_vir        : %f"  % galaxy.halo.delta_vir)
-	Log.info("  rho_crit         : %f"  % galaxy.halo.rho_crit_msun_kpc3)
+	Log.info("  m200c: %s" % galaxy.halo.m200c)
+	Log.info("  c200: %s" % galaxy.halo.c200)
+	Log.info("  r200c_kpc: %s" % galaxy.halo.r200c_kpc)
+	Log.info("  rs_kpc: %s" % galaxy.halo.rs_kpc)
+	Log.info("  rho_s: %s" % galaxy.halo.rho_s_msun_kpc3)
+	Log.info("  mvir_pred: %s" % galaxy.halo.mvir_pred)
+	Log.info("  cvir: %s" % galaxy.halo.cvir)
+	Log.info("  rvir_kpc: %s" % galaxy.halo.rvir_kpc)
+	Log.info("  delta_vir: %s" % galaxy.halo.delta_vir)
+	Log.info("  rho_crit: %s" % galaxy.halo.rho_crit_msun_kpc3)
 	Log.info("  --- disk ---")
-	Log.info("  r_eff_m          : %f"  % galaxy.disk_size.r_eff_m)
-	Log.info("  r_d_m            : %f"  % galaxy.disk_size.r_d_m)
-	Log.info("  z0_m             : %f"  % galaxy.disk_thickness.z0_m)
-	Log.info("  q_z0_over_rd     : %f"  % galaxy.disk_thickness.q_z0_over_rd)
+	Log.info("  r_eff_m: %s" % galaxy.disk_size.r_eff_m)
+	Log.info("  r_d_m: %s" % galaxy.disk_size.r_d_m)
+	Log.info("  z0_m: %s" % galaxy.disk_thickness.z0_m)
+	Log.info("  q_z0_over_rd: %s" % galaxy.disk_thickness.q_z0_over_rd)
 	Log.info("  --- bulge ---")
-	Log.info("  n_sersic         : %f"  % galaxy.bulge_profile.n_sersic)
-	Log.info("  r_eff_kpc        : %f"  % galaxy.bulge_profile.r_eff_kpc)
+	Log.info("  n_sersic : %s" % galaxy.bulge_profile.n_sersic)
+	Log.info("  r_eff_kpc: %s" % galaxy.bulge_profile.r_eff_kpc)
 	Log.info("  --- SMBH ---")
-	Log.info("  has_bh           : %f"    % galaxy.accretion_disk.has_bh)
-	Log.info("  has_disk         : %f"    % galaxy.accretion_disk.has_disk)
-	Log.info("  log10_m_bh_msun  : %f"  % galaxy.accretion_disk.log10_m_bh_msun)
-	Log.info("  log10_lambda     : %f"  % galaxy.accretion_disk.log10_lambda_proxy)
-	Log.info("  p_coherent       : %f"  % galaxy.accretion_disk.p_coherent)
-	Log.info("  r_out_rg         : %f"  % galaxy.accretion_disk.r_out_rg)
-	Log.info("  spin_a           : %f"  % galaxy.accretion_disk.spin_a)
-	Log.info("  eta_rad          : %f"  % galaxy.accretion_disk.eta_rad)
+	Log.info("  has_bh: %s" % galaxy.accretion_disk.has_bh)
+	Log.info("  has_disk: %s" % galaxy.accretion_disk.has_disk)
+	Log.info("  log10_m_bh_msun: %s" % galaxy.accretion_disk.log10_m_bh_msun)
+	Log.info("  log10_lambda: %s" % galaxy.accretion_disk.log10_lambda_proxy)
+	Log.info("  p_coherent: %s" % galaxy.accretion_disk.p_coherent)
+	Log.info("  r_out_rg: %s" % galaxy.accretion_disk.r_out_rg)
+	Log.info("  spin_a: %s" % galaxy.accretion_disk.spin_a)
+	Log.info("  eta_rad: %s" % galaxy.accretion_disk.eta_rad)
+	Log.info("  agn_class: %s" % galaxy.accretion_disk.agn_class)
+	Log.info("  log10_l_bol_lsun: %s" % galaxy.accretion_disk.log10_l_bol_lsun)
+	Log.info("  has_jet: %s" % galaxy.accretion_disk.has_jet)
+	Log.info("  jet_morphology: %s" % galaxy.accretion_disk.jet_morphology)
+	Log.info("  log10_p_jet_w: %s" % galaxy.accretion_disk.log10_p_jet_w)
+	Log.info("  jet_lorentz: %s"       % galaxy.accretion_disk.jet_lorentz)
