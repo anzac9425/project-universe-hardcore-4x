@@ -133,6 +133,30 @@ static func generate(
 	bulge_profile.sigma_logit_n = bulge_profile_dict["sigma_logit_n"]
 	bulge_profile.halo_soft_prior = bulge_profile_dict["halo_soft_prior"]
 	galaxy.bulge_profile = bulge_profile
+
+	var accretion_disk_dict := C.sample_accretion_disk_from_galaxy(
+		galaxy_seed,
+		m_vir,
+		f_baryon,
+		f_gas,
+		f_bulge,
+		s_morph
+	)
+
+	if accretion_disk_dict.is_empty():
+		Log.error(113, "galaxy_seed")
+		return
+
+	var accretion_disk := AccretionDiskData.new()
+	accretion_disk.has_disk = accretion_disk_dict["has_disk"]
+	accretion_disk.p_disk = accretion_disk_dict["p_disk"]
+	accretion_disk.m_bh_kg = accretion_disk_dict["m_bh_kg"]
+	accretion_disk.log10_m_bh_msun = accretion_disk_dict["log10_m_bh_msun"]
+	accretion_disk.spin_a = accretion_disk_dict["spin_a"]
+	accretion_disk.eta_rad = accretion_disk_dict["eta_rad"]
+	accretion_disk.log10_lambda_proxy = accretion_disk_dict["log10_lambda_proxy"]
+	accretion_disk.p_coherent = accretion_disk_dict["p_coherent"]
+	galaxy.accretion_disk = accretion_disk
 	
 	Log.info("galaxy_seed: %s" % [galaxy.galaxy_seed])
 	Log.info("m_vir/C.MILKYWAY_MASS: %s" % [galaxy.m_vir/C.MILKYWAY_MASS])
@@ -157,5 +181,9 @@ static func generate(
 	Log.info("q_z0_over_rd: %s" % [galaxy.disk_thickness.q_z0_over_rd])
 	Log.info("bulge_n_sersic: %s" % [galaxy.bulge_profile.n_sersic])
 	Log.info("bulge_r_eff_kpc: %s" % [galaxy.bulge_profile.r_eff_kpc])
+	Log.info("accretion_has_disk: %s" % [galaxy.accretion_disk.has_disk])
+	Log.info("accretion_log10_m_bh_msun: %s" % [galaxy.accretion_disk.log10_m_bh_msun])
+	Log.info("accretion_log10_lambda_proxy: %s" % [galaxy.accretion_disk.log10_lambda_proxy])
+	Log.info("accretion_p_coherent: %s" % [galaxy.accretion_disk.p_coherent])
 	
 	return galaxy

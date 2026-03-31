@@ -25,5 +25,6 @@ var halo: HaloData
 var disk_size: DiskSize
 var disk_thickness: DiskThickness
 var bulge_profile: BulgeProfile
+var accretion_disk: AccretionDiskData
 
 var systems: Array[SystemData] =[]
