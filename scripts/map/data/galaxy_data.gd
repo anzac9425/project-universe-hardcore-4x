@@ -26,6 +26,7 @@ var disk_size: DiskSize
 var disk_thickness: DiskThickness
 var bulge_profile: BulgeProfile
 var accretion_disk: AccretionDiskData
+var spiral_structure: SpiralStructureData
 
 var sfr_msun_per_yr: float
 var log10_sfr_msun_per_yr: float

@@ -200,8 +200,48 @@ static func generate(
 	galaxy.z_gradient_dex_per_kpc = metallicity_dict["gradient_dex_per_kpc"]
 	galaxy.z_scatter_dex = metallicity_dict["scatter_dex"]
 
+	# --- Spiral structure (Step 17~20) ---
+	var galaxy_type_label := _resolve_spiral_eligibility(f_bulge, f_disk, s_morph)
+	var spiral_dict := C.sample_spiral_structure_from_galaxy(
+		galaxy_seed,
+		galaxy_type_label,
+		m_star,
+		f_gas,
+		galaxy.log10_sfr_msun_per_yr,
+		z
+	)
+	var spiral_structure := SpiralStructureData.new()
+	spiral_structure.has_spiral = spiral_dict["has_spiral"]
+	spiral_structure.m_arms = spiral_dict["m_arms"]
+	spiral_structure.m_arms_label = spiral_dict["m_arms_label"]
+	spiral_structure.p_two_arms = spiral_dict["p_two_arms"]
+	spiral_structure.p_three_arms = spiral_dict["p_three_arms"]
+	spiral_structure.p_four_arms = spiral_dict["p_four_arms"]
+	spiral_structure.p_five_plus_arms = spiral_dict["p_five_plus_arms"]
+	spiral_structure.pitch_deg = spiral_dict["pitch_deg"]
+	spiral_structure.pitch_rad = spiral_dict["pitch_rad"]
+	spiral_structure.pitch_raw_rad = spiral_dict["pitch_raw_rad"]
+	spiral_structure.arm_contrast = spiral_dict["arm_contrast"]
+	spiral_structure.arm_contrast_raw = spiral_dict["arm_contrast_raw"]
+
+	var phases: Array[float] = []
+	for phase in spiral_dict["arm_phases_rad"]:
+		phases.append(float(phase))
+	spiral_structure.arm_phases_rad = phases
+
+	spiral_structure.phase_scatter_rad = spiral_dict["phase_scatter_rad"]
+	galaxy.spiral_structure = spiral_structure
+
 	_log_galaxy(galaxy)
 	return galaxy
+
+
+static func _resolve_spiral_eligibility(f_bulge: float, f_disk: float, s_morph: float) -> String:
+	if f_disk <= 0.0:
+		return "non_spiral"
+	if f_disk > f_bulge and s_morph < 0.2:
+		return "spiral"
+	return "non_spiral"
 
 
 static func _log_galaxy(galaxy: GalaxyData) -> void:
@@ -256,3 +296,8 @@ static func _log_galaxy(galaxy: GalaxyData) -> void:
 	Log.info("  Z_center (12+logO/H): %s" % galaxy.z_center_12_log_oh)
 	Log.info("  Z_gradient [dex/kpc]: %s" % galaxy.z_gradient_dex_per_kpc)
 	Log.info("  Z_scatter [dex]: %s" % galaxy.z_scatter_dex)
+	Log.info("  --- spiral structure ---")
+	Log.info("  has_spiral: %s" % galaxy.spiral_structure.has_spiral)
+	Log.info("  m_arms: %s" % galaxy.spiral_structure.m_arms_label)
+	Log.info("  pitch_deg: %s" % galaxy.spiral_structure.pitch_deg)
+	Log.info("  arm_contrast: %s" % galaxy.spiral_structure.arm_contrast)
