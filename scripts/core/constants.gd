@@ -86,7 +86,11 @@ enum HashPurpose {
 	GALAXY_JET,               # 제트 존재 여부 + 산포
 	GALAXY_JET_LORENTZ,       # 로렌츠 인수 산포
 	GALAXY_SFR,               # SFMS + quenching 산포
-	GALAXY_METALLICITY        # 금속도 중심값/gradient 산포
+	GALAXY_METALLICITY,        # 금속도 중심값/gradient 산포
+	GALAXY_SPIRAL_ARMS,
+	GALAXY_SPIRAL_PITCH,
+	GALAXY_SPIRAL_CONTRAST,
+	GALAXY_SPIRAL_PHASE
 }
 
 # f_baryon
@@ -1176,4 +1180,214 @@ static func sample_metallicity_profile(
 		"z_center_12_log_oh": z_center,
 		"gradient_dex_per_kpc": grad_dex_per_kpc,
 		"scatter_dex": 0.10
+	}
+
+# PHASE 6: Spiral structure
+# - only for galaxy_type == "spiral"
+# - arm count: 2 / 3 / 4 / 5+ (5 is used as a capped representative for 5+)
+# - pitch angle: lognormal + soft bounds
+# - arm contrast: lognormal + soft bounds
+# - phases: uniform base + small deterministic scatter per arm
+
+static func _soft_bound_positive_logspace(
+	raw_value: float,
+	min_value: float,
+	max_value: float,
+	softness: float = 4.0
+) -> float:
+	if not is_finite(raw_value) or raw_value <= 0.0:
+		return min_value
+
+	var lo := log(max(min_value, 1e-12))
+	var hi := log(max(max_value, min_value * 1.000001))
+	var y := log(raw_value)
+
+	# t = 0..1, then smoothly compress toward bounds in log-space
+	var t: float = (y - lo) / max(hi - lo, 1e-9)
+	var s := sigmoid((t - 0.5) * softness)
+
+	return exp(lo + (hi - lo) * s)
+
+
+static func sample_spiral_structure_from_galaxy(
+	galaxy_seed: int,
+	galaxy_type: String,
+	m_star_kg: float,
+	f_gas_: float,
+	log10_sfr_msun_per_yr: float,
+	z: float = 0.0
+) -> Dictionary:
+	var no_spiral := {
+		"has_spiral": false,
+		"m_arms": 0,
+		"m_arms_label": "",
+		"p_two_arms": 0.0,
+		"p_three_arms": 0.0,
+		"p_four_arms": 0.0,
+		"p_five_plus_arms": 0.0,
+		"pitch_deg": NAN,
+		"pitch_rad": NAN,
+		"pitch_raw_rad": NAN,
+		"arm_contrast": NAN,
+		"arm_contrast_raw": NAN,
+		"arm_phases_rad": [],
+		"phase_scatter_rad": NAN
+	}
+
+	if galaxy_type != "spiral":
+		return no_spiral
+
+	if not is_finite(m_star_kg) or m_star_kg <= 0.0:
+		Log.error(116, "res://scripts/core/constants.gd")
+		return no_spiral
+
+	if not is_finite(f_gas_) or f_gas_ <= 0.0:
+		Log.error(117, "res://scripts/core/constants.gd")
+		return no_spiral
+
+	if not is_finite(log10_sfr_msun_per_yr):
+		Log.error(118, "res://scripts/core/constants.gd")
+		return no_spiral
+
+	var logM := logx(m_star_kg / SOLAR_MASS)
+
+	# ------------------------------------------------------------
+	# 17) Arm count: 2 / 3 / 4 / 5+
+	# Baseline weights follow Galaxy Zoo-like fractions, then are
+	# smoothly perturbed by mass, gas, and SFR.
+	# ------------------------------------------------------------
+	var z_arm := random_normal(galaxy_seed, HashPurpose.GALAXY_SPIRAL_ARMS, 0)
+
+	var log10_sfr_ref := -0.35 + 0.72 * (logM - 10.5)
+	var sfr_term := tanh((log10_sfr_msun_per_yr - log10_sfr_ref) / 0.75)
+	var gas_term := tanh((f_gas_ - 0.28) / 0.14)
+	var mass_term := logM - 10.5
+
+	var l2 := log(0.62) \
+		- 0.55 * mass_term \
+		- 0.18 * sfr_term \
+		- 0.10 * gas_term \
+		+ 0.12 * z_arm
+
+	var l3 := log(0.20) \
+		+ 0.10 * mass_term \
+		+ 0.05 * sfr_term \
+		+ 0.04 * gas_term \
+		+ 0.08 * z_arm
+
+	var l4 := log(0.065) \
+		+ 0.42 * mass_term \
+		+ 0.16 * sfr_term \
+		+ 0.10 * gas_term \
+		+ 0.10 * z_arm
+
+	var l5 := log(0.065) \
+		+ 0.70 * mass_term \
+		+ 0.24 * sfr_term \
+		+ 0.16 * gas_term \
+		+ 0.12 * z_arm
+
+	var lmax: float = max(max(l2, l3), max(l4, l5))
+	var e2 := exp(l2 - lmax)
+	var e3 := exp(l3 - lmax)
+	var e4 := exp(l4 - lmax)
+	var e5 := exp(l5 - lmax)
+	var esum := e2 + e3 + e4 + e5
+
+	var p2 := e2 / esum
+	var p3 := e3 / esum
+	var p4 := e4 / esum
+	var p5 := e5 / esum
+
+	var u_arm := hash_float(galaxy_seed, HashPurpose.GALAXY_SPIRAL_ARMS, 1)
+	var m_arms := 2
+	if u_arm < p2:
+		m_arms = 2
+	elif u_arm < p2 + p3:
+		m_arms = 3
+	elif u_arm < p2 + p3 + p4:
+		m_arms = 4
+	else:
+		m_arms = 5 # representative for 5+
+
+	# ------------------------------------------------------------
+	# 18) Pitch angle: lognormal with soft bounds [5°, 35°]
+	# Higher mass -> tighter arms -> smaller pitch angle.
+	# The slope is intentionally mild.
+	# ------------------------------------------------------------
+	var z_pitch := random_normal(galaxy_seed, HashPurpose.GALAXY_SPIRAL_PITCH, 0)
+
+	var pitch_mu_ln := log(deg_to_rad(18.0)) \
+		- 0.15 * (logM - 10.5) \
+		+ 0.05 * tanh((f_gas_ - 0.25) / 0.15) \
+		+ 0.03 * tanh((log10_sfr_msun_per_yr - log10_sfr_ref) / 0.80)
+
+	var pitch_sigma_ln: float = 0.32 + 0.02 * abs(z)
+	var pitch_raw_rad := exp(pitch_mu_ln + pitch_sigma_ln * z_pitch)
+
+	var pitch_rad := _soft_bound_positive_logspace(
+		pitch_raw_rad,
+		deg_to_rad(5.0),
+		deg_to_rad(35.0),
+		3.8
+	)
+
+	# ------------------------------------------------------------
+	# 19) Arm contrast: gas-rich and star-forming disks have stronger arms.
+	# Contrast is modeled in log-space, then softly bounded.
+	# ------------------------------------------------------------
+	var z_contrast := random_normal(galaxy_seed, HashPurpose.GALAXY_SPIRAL_CONTRAST, 0)
+
+	var contrast_mu_ln := log(0.20) \
+		+ 0.42 * tanh((f_gas_ - 0.28) / 0.14) \
+		+ 0.30 * tanh((log10_sfr_msun_per_yr - log10_sfr_ref) / 0.75) \
+		- 0.10 * (logM - 10.5)
+
+	var contrast_sigma_ln := 0.36
+	var arm_contrast_raw := exp(contrast_mu_ln + contrast_sigma_ln * z_contrast)
+
+	var arm_contrast := _soft_bound_positive_logspace(
+		arm_contrast_raw,
+		0.03,
+		1.25,
+		4.5
+	)
+
+	# ------------------------------------------------------------
+	# 20) Phase offsets: equal spacing + small deterministic scatter
+	# Smaller scatter for larger m, to avoid excessive overlap.
+	# ------------------------------------------------------------
+	var base_phase := TAU * hash_float(galaxy_seed, HashPurpose.GALAXY_SPIRAL_PHASE, 0)
+	var arm_phases: Array = []
+
+	var phase_scatter_rad := deg_to_rad(8.0 if m_arms <= 3 else 5.0)
+
+	for i in range(m_arms):
+		var z_phase := random_normal(galaxy_seed, HashPurpose.GALAXY_SPIRAL_PHASE, i + 1)
+		var phase := wrapf(
+			base_phase + TAU * float(i) / float(m_arms) + phase_scatter_rad * z_phase,
+			0.0,
+			TAU
+		)
+		arm_phases.append(phase)
+
+	return {
+		"has_spiral": true,
+		"m_arms": m_arms,
+		"m_arms_label": "5+" if m_arms == 5 else str(m_arms),
+
+		"p_two_arms": p2,
+		"p_three_arms": p3,
+		"p_four_arms": p4,
+		"p_five_plus_arms": p5,
+
+		"pitch_deg": rad_to_deg(pitch_rad),
+		"pitch_rad": pitch_rad,
+		"pitch_raw_rad": pitch_raw_rad,
+
+		"arm_contrast": arm_contrast,
+		"arm_contrast_raw": arm_contrast_raw,
+
+		"arm_phases_rad": arm_phases,
+		"phase_scatter_rad": phase_scatter_rad
 	}
