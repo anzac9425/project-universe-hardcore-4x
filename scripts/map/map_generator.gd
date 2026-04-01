@@ -169,6 +169,37 @@ static func generate(
 	accretion_disk.jet_lorentz        = jet_dict["jet_lorentz"]
 	accretion_disk.jet_half_angle_deg = jet_dict["jet_half_angle_deg"]
 
+	# --- Stellar population : SFR (Step 15) ---
+	var sfr_dict := C.sample_sfr_from_galaxy(
+		galaxy_seed,
+		m_star,
+		z,
+		f_gas,
+		delta_physics,
+		accretion_disk.log10_lambda_proxy,
+		accretion_disk.has_jet,
+		accretion_disk.log10_p_jet_w
+	)
+	if sfr_dict.is_empty():
+		Log.error(114, "MapGenerator.gd")
+		return null
+	galaxy.sfr_msun_per_yr = sfr_dict["sfr_msun_per_yr"]
+	galaxy.log10_sfr_msun_per_yr = sfr_dict["log10_sfr_msun_per_yr"]
+	galaxy.log10_sfr_sfms_msun_per_yr = sfr_dict["log10_sfr_sfms_msun_per_yr"]
+	galaxy.log10_sfr_quench_correction = sfr_dict["log10_quench_correction"]
+
+	# --- Stellar population : metallicity profile (Step 16) ---
+	var metallicity_dict := C.sample_metallicity_profile(
+		galaxy_seed,
+		sfr_dict["log10_m_star_msun"]
+	)
+	if metallicity_dict.is_empty():
+		Log.error(115, "MapGenerator.gd")
+		return null
+	galaxy.z_center_12_log_oh = metallicity_dict["z_center_12_log_oh"]
+	galaxy.z_gradient_dex_per_kpc = metallicity_dict["gradient_dex_per_kpc"]
+	galaxy.z_scatter_dex = metallicity_dict["scatter_dex"]
+
 	_log_galaxy(galaxy)
 	return galaxy
 
@@ -217,3 +248,11 @@ static func _log_galaxy(galaxy: GalaxyData) -> void:
 	Log.info("  jet_morphology: %s" % galaxy.accretion_disk.jet_morphology)
 	Log.info("  log10_p_jet_w: %s" % galaxy.accretion_disk.log10_p_jet_w)
 	Log.info("  jet_lorentz: %s"       % galaxy.accretion_disk.jet_lorentz)
+	Log.info("  --- stellar population ---")
+	Log.info("  sfr [Msun/yr]: %s" % galaxy.sfr_msun_per_yr)
+	Log.info("  log10_sfr: %s" % galaxy.log10_sfr_msun_per_yr)
+	Log.info("  log10_sfr_sfms: %s" % galaxy.log10_sfr_sfms_msun_per_yr)
+	Log.info("  log10_quench: %s" % galaxy.log10_sfr_quench_correction)
+	Log.info("  Z_center (12+logO/H): %s" % galaxy.z_center_12_log_oh)
+	Log.info("  Z_gradient [dex/kpc]: %s" % galaxy.z_gradient_dex_per_kpc)
+	Log.info("  Z_scatter [dex]: %s" % galaxy.z_scatter_dex)

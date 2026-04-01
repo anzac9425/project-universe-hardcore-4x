@@ -84,7 +84,9 @@ enum HashPurpose {
 	GALAXY_ACCRETION_EDD_RATIO,
 	GALAXY_AGN_OBSCURATION,   # Type 1/2 차폐 샘플링
 	GALAXY_JET,               # 제트 존재 여부 + 산포
-	GALAXY_JET_LORENTZ        # 로렌츠 인수 산포
+	GALAXY_JET_LORENTZ,       # 로렌츠 인수 산포
+	GALAXY_SFR,               # SFMS + quenching 산포
+	GALAXY_METALLICITY        # 금속도 중심값/gradient 산포
 }
 
 # f_baryon
@@ -1090,4 +1092,83 @@ static func sample_jet_properties(
 		"jet_morphology": jet_morphology,
 		"jet_lorentz": jet_lorentz,
 		"jet_half_angle_deg": jet_half_angle_deg
+	}
+
+
+# ─────────────────────────────────────────────────────────────────
+# STELLAR POPULATION  (Step 15~16)
+# ─────────────────────────────────────────────────────────────────
+
+static func sample_sfr_from_galaxy(
+	galaxy_seed: int,
+	m_star_kg: float,
+	z: float,
+	f_gas_: float,
+	delta_physics: float,
+	log10_lambda_proxy: float,
+	has_jet: bool,
+	log10_p_jet_w: float
+) -> Dictionary:
+	if not is_finite(m_star_kg) or m_star_kg <= 0.0:
+		Log.error(114, "res://scripts/core/constants.gd")
+		return {}
+
+	var log10_m_star := logx(m_star_kg / SOLAR_MASS)
+	var z_sfr := random_normal(galaxy_seed, HashPurpose.GALAXY_SFR, 0)
+
+	# SFMS anchor:
+	# log10(SFR/Msun yr^-1) = a * (logM* - 10.5) + b(z) + gas + latent physics + scatter
+	var a_mass := 0.72 - 0.10 * clamp(z, 0.0, 2.0)
+	var b_z := -0.12 + 1.10 * logx(1.0 + z)
+
+	var gas_term := 0.65 * tanh((f_gas_ - 0.25) / 0.15)
+	var phys_term := 0.18 * tanh(delta_physics / 0.8)
+	var log10_sfr_sfms := a_mass * (log10_m_star - 10.5) + b_z + gas_term + phys_term
+
+	# AGN feedback quenching:
+	# - strong radio jet (kinetic mode) and high lambda both suppress SFR.
+	var jet_quench := 0.0
+	if has_jet and is_finite(log10_p_jet_w):
+		jet_quench = clamp((log10_p_jet_w - 36.0) / 2.5, 0.0, 1.4)
+
+	var rad_quench := clamp((log10_lambda_proxy + 2.0) / 2.5, 0.0, 0.7)
+	var log10_quench_total := jet_quench + rad_quench
+
+	var log10_sfr := log10_sfr_sfms - log10_quench_total + 0.35 * z_sfr
+	log10_sfr = clamp(log10_sfr, -4.0, 3.0)
+
+	return {
+		"log10_m_star_msun": log10_m_star,
+		"log10_sfr_sfms_msun_per_yr": log10_sfr_sfms,
+		"log10_sfr_msun_per_yr": log10_sfr,
+		"sfr_msun_per_yr": pow(10.0, log10_sfr),
+		"log10_quench_correction": log10_quench_total,
+		"jet_quench_term": jet_quench,
+		"rad_quench_term": rad_quench
+	}
+
+
+static func sample_metallicity_profile(
+	galaxy_seed: int,
+	log10_m_star_msun: float
+) -> Dictionary:
+	if not is_finite(log10_m_star_msun):
+		Log.error(115, "res://scripts/core/constants.gd")
+		return {}
+
+	# 중심 금속도 (12 + log(O/H)) mass-metallicity relation
+	# local MZR around z~0, mildly saturating near ~9.1
+	var z_met_center := random_normal(galaxy_seed, HashPurpose.GALAXY_METALLICITY, 0)
+	var x := log10_m_star_msun - 10.0
+	var z0_center := 8.75 + 0.30 * x - 0.08 * x * x
+	var z_center := clamp(z0_center + 0.10 * z_met_center, 7.6, 9.4)
+
+	# gradient: -0.05 ~ -0.10 dex/kpc
+	var u_grad := hash_float(galaxy_seed, HashPurpose.GALAXY_METALLICITY, 2)
+	var grad_dex_per_kpc := lerp(-0.10, -0.05, u_grad)
+
+	return {
+		"z_center_12_log_oh": z_center,
+		"gradient_dex_per_kpc": grad_dex_per_kpc,
+		"scatter_dex": 0.10
 	}

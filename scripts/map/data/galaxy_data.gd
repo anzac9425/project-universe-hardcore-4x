@@ -27,4 +27,13 @@ var disk_thickness: DiskThickness
 var bulge_profile: BulgeProfile
 var accretion_disk: AccretionDiskData
 
+var sfr_msun_per_yr: float
+var log10_sfr_msun_per_yr: float
+var log10_sfr_sfms_msun_per_yr: float
+var log10_sfr_quench_correction: float
+
+var z_center_12_log_oh: float
+var z_gradient_dex_per_kpc: float
+var z_scatter_dex: float
+
 var systems: Array[SystemData] =[]
