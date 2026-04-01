@@ -11,8 +11,7 @@ func _ready() -> void:
 
 func _draw() -> void:
 	if GameSession.galaxy == null:
-		Log.error(ERR_CODE.GAMESESSION_GALAXY_NULL, "Galaxy data is null")
-		return
+		Log.error(20, "Galaxy data is null")
 
 	draw_circle(Vector2.ZERO, SYSTEM_DOT_RADIUS * 1.4, GALAXY_CENTER_COLOR)
 

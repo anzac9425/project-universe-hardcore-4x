@@ -17,7 +17,7 @@ static func generate(
 	var m_vir = m_vir_msun * C.SOLAR_MASS
 	galaxy.m_vir = m_vir
 
-	var z = 0.12895
+	var z = 0.0
 
 	var f_baryon = C.f_baryon(galaxy_seed, m_vir)
 	galaxy.f_baryon = f_baryon

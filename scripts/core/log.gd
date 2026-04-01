@@ -18,7 +18,7 @@ const ERROR_MESSAGES = {
 
 
 static func _get_msg(code: int) -> String:
-	return ERROR_MESSAGES.get(code, "알 수 없는 오류가 발생했습니다. (Code: %s)" % code)
+	return ERROR_MESSAGES.get(code, "Unknown Error. (Code: %s)" % code)
 
 static func _get_error_key(code: int, suffix: String = "") -> String:
 	var base_key := _get_msg(code)
