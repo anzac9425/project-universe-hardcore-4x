@@ -44,7 +44,7 @@ static func generate(
 	# --- DM halo ---
 	var halo_dict := C.halo_state_from_mvir(galaxy_seed, m_vir, z)
 	if halo_dict.is_empty():
-		Log.error(110, "MapGenerator.gd")
+		Log.error(ERR_CODE.MAP_GENERATION_FAILED, "MapGenerator.gd", "HALO")
 		return null
 
 	var halo := HaloData.new()
@@ -65,7 +65,7 @@ static func generate(
 		galaxy_seed, m_vir, f_baryon, f_gas, f_disk, z, halo_dict["r200c_kpc"]
 	)
 	if disk_size_dict.is_empty():
-		Log.error(111, "MapGenerator.gd")
+		Log.error(ERR_CODE.MAP_GENERATION_FAILED, "MapGenerator.gd", "DISK_SIZE")
 		return null
 
 	var disk_size := DiskSize.new()
@@ -85,7 +85,7 @@ static func generate(
 		galaxy_seed, disk_size_dict["r_d_m"], f_disk * m_star, f_gas, s_morph, z
 	)
 	if disk_thickness_dict.is_empty():
-		Log.error(112, "MapGenerator.gd")
+		Log.error(ERR_CODE.MAP_GENERATION_FAILED, "MapGenerator.gd", "DISK_THICKNESS")
 		return null
 
 	var disk_thickness := DiskThickness.new()
@@ -100,7 +100,7 @@ static func generate(
 		galaxy_seed, m_vir, f_baryon, f_gas, f_bulge, s_morph, z, halo_dict["r200c_kpc"]
 	)
 	if bulge_profile_dict.is_empty():
-		Log.error(113, "MapGenerator.gd")
+		Log.error(ERR_CODE.MAP_GENERATION_FAILED, "MapGenerator.gd", "BULGE_PROFILE")
 		return null
 
 	var bulge_profile := BulgeProfile.new()
@@ -181,7 +181,7 @@ static func generate(
 		accretion_disk.log10_p_jet_w
 	)
 	if sfr_dict.is_empty():
-		Log.error(114, "MapGenerator.gd")
+		Log.error(ERR_CODE.MAP_GENERATION_FAILED, "MapGenerator.gd", "SFR")
 		return null
 	galaxy.sfr_msun_per_yr = sfr_dict["sfr_msun_per_yr"]
 	galaxy.log10_sfr_msun_per_yr = sfr_dict["log10_sfr_msun_per_yr"]
@@ -194,7 +194,7 @@ static func generate(
 		sfr_dict["log10_m_star_msun"]
 	)
 	if metallicity_dict.is_empty():
-		Log.error(115, "MapGenerator.gd")
+		Log.error(ERR_CODE.MAP_GENERATION_FAILED, "MapGenerator.gd", "METALLICITY")
 		return null
 	galaxy.z_center_12_log_oh = metallicity_dict["z_center_12_log_oh"]
 	galaxy.z_gradient_dex_per_kpc = metallicity_dict["gradient_dex_per_kpc"]

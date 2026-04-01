@@ -12,7 +12,7 @@ func load_scene():
 	var path: String = SceneManager.target_scene_path
 
 	if path.is_empty() or not ResourceLoader.exists(path):
-		Log.error(10, path)
+		Log.error(ERR_CODE.LOADING_ERROR, path, "TARGET_INVALID")
 		SceneManager.finish_loading(null)
 		return
 
@@ -20,7 +20,7 @@ func load_scene():
 	var request_result := ResourceLoader.load_threaded_request(path)
 
 	if request_result != OK:
-		Log.error(11, path)
+		Log.error(ERR_CODE.LOADING_ERROR, path, "REQUEST_FAILED")
 		SceneManager.finish_loading(null)
 		return
 
@@ -40,13 +40,13 @@ func load_scene():
 			break
 
 		if status == ResourceLoader.THREAD_LOAD_FAILED or status == ResourceLoader.THREAD_LOAD_INVALID_RESOURCE:
-			Log.error(12, path)
+			Log.error(ERR_CODE.LOADING_ERROR, path, "THREAD_FAILED")
 			SceneManager.finish_loading(null)
 			return
 
 		frame_count += 1
 		if frame_count > C.MAX_LOADING_FRAMES:
-			Log.error(13, path)
+			Log.error(ERR_CODE.LOADING_ERROR, path, "TIMEOUT")
 			SceneManager.finish_loading(null)
 			return
 
