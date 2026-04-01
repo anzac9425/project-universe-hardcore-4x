@@ -592,14 +592,14 @@ static func sample_disk_thickness_si( # z = (관측된 파장 - 원래 파장) /
 	var Z := get_Z(u1, u2)
 
 	# q가 항상 양수이도록 logistic-normal 사용
-	var x := logit(Q0) \
+	var x := logit((Q0 - Q_MIN) / (Q_MAX - Q_MIN)) \
 		+ 1.10 * (p_bulge - 0.30) \
 		- 0.90 * (gas_logit - logit(0.30)) \
 		+ 0.10 * (logM - 10.5) \
 		+ 0.3 * logx(1.0 + z) \
 		+ SIGMA_LOGIT * Z
-
-	var q: float = clamp(sigmoid(x), Q_MIN, Q_MAX)
+		
+	var q: float = Q_MIN + (Q_MAX - Q_MIN) * sigmoid(x)
 	var z0_m := q * r_d_m
 
 	return {
@@ -874,12 +874,9 @@ static func sample_accretion_disk_from_galaxy(
 	# 5) Disk existence probability
 	var p_bh_mass := sigmoid((log10_mbh - 6.2) / 0.70)
 	var p_fuel := sigmoid((log10_lambda + 2.4) / 0.60)
-	var p_coherent_boost := 0.85 + 0.15 * p_coherent
 
-	var p_disk: float = clamp(
-		sigmoid((log10_lambda - (-1.70)) / 0.45),
-		0.02, 0.98
-	)
+	var p_disk: float = sigmoid((log10_lambda - (-1.70)) / 0.45)
+	
 
 	var u_disk := hash_float(galaxy_seed, HashPurpose.GALAXY_ACCRETION_EXISTENCE, 0)
 	var has_disk := u_disk < p_disk
@@ -1075,15 +1072,21 @@ static func sample_jet_properties(
 			gamma_base = 2.0
 
 	var z_gamma := random_normal(galaxy_seed, HashPurpose.GALAXY_JET_LORENTZ, 0)
-	var jet_lorentz: float = clamp(gamma_base * exp(0.40 * z_gamma), 1.5, 30.0)
+	const GAMMA_MIN: float = 1.5
+	const GAMMA_MAX: float = 30.0
+	var x_gamma := logit((gamma_base - GAMMA_MIN) / (GAMMA_MAX - GAMMA_MIN)) + 0.40 * z_gamma
+	var jet_lorentz: float = GAMMA_MIN + (GAMMA_MAX - GAMMA_MIN) * sigmoid(x_gamma)
 
 	# ── 반개구각 ─────────────────────────────────────────────────
 	# θ ≈ 1/Γ [rad]; 관측 제트는 약간 더 넓음
 	var z_theta := random_normal(galaxy_seed, HashPurpose.GALAXY_JET_LORENTZ, 2)
-	var jet_half_angle_deg: float = clamp(
-		rad_to_deg(1.0 / jet_lorentz) * exp(0.10 * z_theta),
-		0.5, 20.0
-	)
+	# 대안: 반개구각도 logistic-normal로
+	const THETA_MIN_DEG: float = 0.5
+	const THETA_MAX_DEG: float = 20.0
+	var theta_center_deg := rad_to_deg(1.0 / jet_lorentz)
+	var x_theta := logit((theta_center_deg - THETA_MIN_DEG) / (THETA_MAX_DEG - THETA_MIN_DEG)) \
+		+ 0.10 * z_theta
+	var jet_half_angle_deg: float = THETA_MIN_DEG + (THETA_MAX_DEG - THETA_MIN_DEG) * sigmoid(x_theta)
 
 	return {
 		"has_jet": true,
@@ -1118,20 +1121,22 @@ static func sample_sfr_from_galaxy(
 
 	# SFMS anchor:
 	# log10(SFR/Msun yr^-1) = a * (logM* - 10.5) + b(z) + gas + latent physics + scatter
-	var a_mass := 0.72 - 0.10 * clamp(z, 0.0, 2.0)
+	var a_mass: float = 0.72 - 0.10 * clamp(z, 0.0, 2.0)
 	var b_z := -0.12 + 1.10 * logx(1.0 + z)
 
 	var gas_term := 0.65 * tanh((f_gas_ - 0.25) / 0.15)
 	var phys_term := 0.18 * tanh(delta_physics / 0.8)
-	var log10_sfr_sfms := a_mass * (log10_m_star - 10.5) + b_z + gas_term + phys_term
+	var log10_sfr_sfms: float = a_mass * (log10_m_star - 10.5) + b_z + gas_term + phys_term
 
 	# AGN feedback quenching:
 	# - strong radio jet (kinetic mode) and high lambda both suppress SFR.
 	var jet_quench := 0.0
 	if has_jet and is_finite(log10_p_jet_w):
-		jet_quench = clamp((log10_p_jet_w - 36.0) / 2.5, 0.0, 1.4)
+		jet_quench = 0.7 * tanh(max(log10_p_jet_w - 36.0, 0.0) / 2.0)
 
-	var rad_quench := clamp((log10_lambda_proxy + 2.0) / 2.5, 0.0, 0.7)
+	var rad_quench: float = 0.0
+	if is_finite(log10_lambda_proxy):
+		rad_quench = 0.35 * tanh(max(log10_lambda_proxy + 2.0, 0.0) / 1.5)
 	var log10_quench_total := jet_quench + rad_quench
 
 	var log10_sfr := log10_sfr_sfms - log10_quench_total + 0.35 * z_sfr
@@ -1161,11 +1166,11 @@ static func sample_metallicity_profile(
 	var z_met_center := random_normal(galaxy_seed, HashPurpose.GALAXY_METALLICITY, 0)
 	var x := log10_m_star_msun - 10.0
 	var z0_center := 8.75 + 0.30 * x - 0.08 * x * x
-	var z_center := clamp(z0_center + 0.10 * z_met_center, 7.6, 9.4)
+	var z_center: float = clamp(z0_center + 0.10 * z_met_center, 7.6, 9.4)
 
 	# gradient: -0.05 ~ -0.10 dex/kpc
 	var u_grad := hash_float(galaxy_seed, HashPurpose.GALAXY_METALLICITY, 2)
-	var grad_dex_per_kpc := lerp(-0.10, -0.05, u_grad)
+	var grad_dex_per_kpc: float = lerp(-0.10, -0.05, u_grad)
 
 	return {
 		"z_center_12_log_oh": z_center,
