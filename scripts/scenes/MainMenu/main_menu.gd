@@ -1,6 +1,6 @@
 extends Node2D
 
-@export var base_seed: int = 1941221121
+@export var base_seed: int = -17542910
 # -1754291: FRI, 1941221121: quasar_1
 @export var galaxy_type: int = 0
 

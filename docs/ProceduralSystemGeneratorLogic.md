@@ -141,6 +141,9 @@ _4.  은하 타입 샘플링 (허블 시퀀스) X
 29. 광도 / 유효온도 / 반지름 파생 #
 	  - MIST/BaSTI isochrone 근사 다항식
 	  - L(M, age), T_eff(M, age), R(M, age)
+	
+# stellar halo NONE!!
+# need star resampling(innerRadius)
 
 
 ━━━ PHASE 9: 성단 & 성간물질 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━

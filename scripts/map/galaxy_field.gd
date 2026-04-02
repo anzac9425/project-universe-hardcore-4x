@@ -10,7 +10,7 @@ class_name GalaxyField
 # z 좌표는 후속 단계에서 부여
 # ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 
-const N_STAR_MAX: int = 2_000
+const N_STAR_MAX: int = 200
 const N_STAR_MIN: int = 2_000
 
 const R_DISK_CUTOFF_RD: float = 6.0
@@ -374,7 +374,7 @@ static func build_rotation_curve(
 ) -> Dictionary:
 	var rvir := float(_halo_get(halo, "rvir_kpc", 0.0))
 	var rs := float(_halo_get(halo, "rs_kpc", 1.0))
-	var rho_s := float(_halo_get(halo, "rho_s_msun_kpc3", 0.0))
+	var rho_s := float(_halo_get(halo, "rho_s", _halo_get(halo, "rho_s_msun_kpc3", 0.0)))
 
 	var R_max := rvir if R_max_kpc <= 0.0 else R_max_kpc
 	R_max = max(R_max, 0.05)
@@ -451,7 +451,7 @@ static func build_toomre_profile(
 ) -> Dictionary:
 	var rvir := float(_halo_get(halo, "rvir_kpc", 0.0))
 	var rs := float(_halo_get(halo, "rs_kpc", 1.0))
-	var rho_s := float(_halo_get(halo, "rho_s_msun_kpc3", 0.0))
+	var rho_s := float(_halo_get(halo, "rho_s", _halo_get(halo, "rho_s_msun_kpc3", 0.0)))
 
 	var R_max: float = min(rvir, Rd_kpc * R_DISK_CUTOFF_RD)
 	R_max = max(R_max, 0.1)

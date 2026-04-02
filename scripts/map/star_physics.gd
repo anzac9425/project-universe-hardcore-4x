@@ -357,8 +357,6 @@ static func sample_star_mass_msun(galaxy_seed: int, star_index: int, gas_bias: f
 
 	#var u2: float = (u - IMF_F_BREAK) / max(1.0 - IMF_F_BREAK, 1e-12)
 	var inner_hi = pow(IMF_M_BREAK, 1.0 - IMF_ALPHA2) + (1.0 - IMF_ALPHA2) * (u - IMF_F_BREAK) / IMF_A2
-	# The line above keeps the analytic inverse form stable around the upper branch.
-	inner_hi = pow(IMF_M_BREAK, 1.0 - IMF_ALPHA2) + (1.0 - IMF_ALPHA2) * (u - IMF_F_BREAK) / IMF_A2
 	return clamp(pow(max(inner_hi, 1e-12), 1.0 / (1.0 - IMF_ALPHA2)), IMF_M_BREAK, IMF_M_MAX)
 
 static func build_star_population(

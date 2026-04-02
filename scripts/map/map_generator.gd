@@ -14,6 +14,7 @@ static func generate(base_seed: int) -> GalaxyData:
 		C.lookback_time_gyr_from_z(z_form) - C.lookback_time_gyr_from_z(z_obs),
 		0.0
 	)
+	age_gyr = 13.8
 	galaxy.z_form = z_form
 	galaxy.age_gyr = age_gyr
 
@@ -334,3 +335,4 @@ static func _log_galaxy(galaxy: GalaxyData) -> void:
 	Log.info("  spiral: %s" % galaxy.galaxy_field.spiral)
 	Log.info("  n_star: %s" % galaxy.galaxy_field.n_star)
 	Log.info("  stable_inner_radius_kpc: %s" % galaxy.galaxy_field.stable_inner_radius_kpc)
+	Log.info("  star_population: %s" % galaxy.galaxy_field.star_population)
