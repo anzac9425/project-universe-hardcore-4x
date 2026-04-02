@@ -199,7 +199,43 @@ static func generate(
 	galaxy.z_center_12_log_oh = metallicity_dict["z_center_12_log_oh"]
 	galaxy.z_gradient_dex_per_kpc = metallicity_dict["gradient_dex_per_kpc"]
 	galaxy.z_scatter_dex = metallicity_dict["scatter_dex"]
+	
+	# --- Phase 7: galaxy field / star distribution (Steps 17-26) ---
+	# 스파이럴 여부는 현재 morphology / disk dominance로 간단 판정
+	var is_spiral := (s_morph < 0.75)
 
+	# 질량 단위 변환: kg -> Msun
+	var m_star_msun: float = m_star / C.SOLAR_MASS
+	var m_disk_msun: float = (f_disk * m_star) / C.SOLAR_MASS
+	var m_bulge_msun: float = (f_bulge * m_star) / C.SOLAR_MASS
+
+	# 나선 구조 + 별 분포 + 회전 곡선 + 안정성 필터를 한 번에 생성
+	var galaxy_field_dict: Dictionary = GalaxyField.build_galaxy_field(
+		galaxy_seed,
+		halo,
+		m_star_msun,
+		m_disk_msun,
+		m_bulge_msun,
+		disk_size.r_d_kpc,
+		bulge_profile.r_eff_kpc,
+		bulge_profile.n_sersic,
+		f_disk,
+		f_bulge,
+		is_spiral,
+		f_gas,
+		C.logx(max(m_star_msun, 1e-6))
+	)
+	var galaxy_field = GalaxyFieldData.new()
+	
+	galaxy_field.spiral = galaxy_field_dict["spiral"]
+	galaxy_field.n_star = galaxy_field_dict["n_star"]
+	galaxy_field.rotation_curve = galaxy_field_dict["rotation_curve"]
+	galaxy_field.toomre_profile = galaxy_field_dict["toomre_profile"]
+	galaxy_field.stable_inner_radius_kpc = galaxy_field_dict["stable_inner_radius_kpc"]
+	galaxy_field.positions_kpc = galaxy_field_dict["positions_kpc"]
+	
+	galaxy.galaxy_field = galaxy_field
+	
 	_log_galaxy(galaxy)
 	return galaxy
 
@@ -256,3 +292,6 @@ static func _log_galaxy(galaxy: GalaxyData) -> void:
 	Log.info("  Z_center (12+logO/H): %s" % galaxy.z_center_12_log_oh)
 	Log.info("  Z_gradient [dex/kpc]: %s" % galaxy.z_gradient_dex_per_kpc)
 	Log.info("  Z_scatter [dex]: %s" % galaxy.z_scatter_dex)
+	Log.info("  spiral: %s" % galaxy.galaxy_field.spiral)
+	Log.info("  n_star: %s" % galaxy.galaxy_field.n_star)
+	Log.info("  stable_inner_radius_kpc: %s" % galaxy.galaxy_field.stable_inner_radius_kpc)

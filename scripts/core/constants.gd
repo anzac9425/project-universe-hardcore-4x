@@ -86,7 +86,18 @@ enum HashPurpose {
 	GALAXY_JET,               # 제트 존재 여부 + 산포
 	GALAXY_JET_LORENTZ,       # 로렌츠 인수 산포
 	GALAXY_SFR,               # SFMS + quenching 산포
-	GALAXY_METALLICITY        # 금속도 중심값/gradient 산포
+	GALAXY_METALLICITY,        # 금속도 중심값/gradient 산포
+	GALAXY_SPIRAL_ARM_COUNT,   # 나선팔 개수 샘플링
+	GALAXY_SPIRAL_PITCH,       # 피치각 샘플링
+	GALAXY_SPIRAL_CONTRAST,    # 팔 강도 샘플링
+	GALAXY_SPIRAL_PHASE,       # 팔 위상 오프셋 샘플링
+	GALAXY_STAR_COMPONENT,     # 디스크 vs 벌지 구성요소 선택
+	GALAXY_STAR_R_DISK,        # 디스크 별 반경 샘플링 (Gamma)
+	GALAXY_STAR_R_BULGE,       # 벌지 별 반경 rejection sampling
+	GALAXY_STAR_PHI_MODE,      # 방위각 모드 (균일 vs 나선팔)
+	GALAXY_STAR_PHI_UNIFORM,   # 균일 방위각
+	GALAXY_STAR_PHI_ARM_SEL,   # 팔 인덱스 선택
+	GALAXY_STAR_PHI_ARM_JIT,   # 팔 중심 주변 가우시안 산포
 }
 
 # f_baryon
@@ -1177,3 +1188,188 @@ static func sample_metallicity_profile(
 		"gradient_dex_per_kpc": grad_dex_per_kpc,
 		"scatter_dex": 0.10
 	}
+
+# ─────────────────────────────────────────────────────────────────────────────
+# BESSEL FUNCTIONS  (Abramowitz & Stegun §9.8)
+# Freeman(1970) 지수 디스크 회전 곡선에 사용
+# 최대 오차: I0/I1 < 1.9×10⁻⁷, K0/K1 < 1.9×10⁻⁷
+# ─────────────────────────────────────────────────────────────────────────────
+
+static func _bessel_I0(x: float) -> float:
+	var ax: float = abs(x)
+	if ax <= 3.75:
+		var t__ := (x / 3.75) * (x / 3.75)           # t = (x/3.75)²
+		return 1.0 + t__*(3.5156329 + t__*(3.0899424 + t__*(1.2067492
+			 + t__*(0.2659732 + t__*(0.0360768 + t__*0.0045813)))))
+	var t_ := 3.75 / ax
+	return (exp(ax) / sqrt(ax)) * (0.39894228 + t_*(0.01328592
+		 + t_*(0.00225319 + t_*(-0.00157565 + t_*(0.00916281
+		 + t_*(-0.02057706 + t_*(0.02635537 + t_*(-0.01647633 + t_*0.00392377))))))))
+
+
+static func _bessel_I1(x: float) -> float:
+	var ax: float = abs(x)
+	if ax <= 3.75:
+		var t_ := (x / 3.75) * (x / 3.75)
+		return x * (0.5 + t_*(0.87890594 + t_*(0.51498869 + t_*(0.15084934
+			 + t_*(0.02658733 + t_*(0.00301532 + t_*0.00032411))))))
+	var t := 3.75 / ax
+	var r := (exp(ax) / sqrt(ax)) * (0.39894228 + t*(-0.03988024
+			+ t*(-0.00362018 + t*(0.00163801 + t*(-0.01031555
+			+ t*(0.02282967 + t*(-0.02895312 + t*(0.01787654 - t*0.00420059))))))))
+	return r if x >= 0.0 else -r
+
+
+static func _bessel_K0(x: float) -> float:
+	if x <= 0.0:
+		return INF
+	if x <= 2.0:
+		var t_ := x * x * 0.25
+		return -log(x * 0.5) * _bessel_I0(x) \
+			+ (-0.57721566 + t_*(0.42278420 + t_*(0.23069756
+			+ t_*(0.03488590 + t_*(0.00262698 + t_*(0.00010750 + t_*0.0000074))))))
+	var t := 2.0 / x
+	return (exp(-x) / sqrt(x)) * (1.25331414 + t*(-0.07832358
+		+ t*(0.02189568 + t*(-0.01062446 + t*(0.00587872 + t*(-0.00251540 + t*0.00053208))))))
+
+
+static func _bessel_K1(x: float) -> float:
+	if x <= 0.0:
+		return INF
+	if x <= 2.0:
+		var t_ := x * x * 0.25
+		return log(x * 0.5) * _bessel_I1(x) \
+			+ (1.0 / x) * (1.0 + t_*(0.15443144 + t_*(-0.67278579
+			+ t_*(-0.18156897 + t_*(-0.01919402 + t_*(-0.00110404 + t_*(-0.00004686)))))))
+	var t := 2.0 / x
+	return (exp(-x) / sqrt(x)) * (1.25331414 + t*(0.23498619
+		+ t*(-0.03655620 + t*(0.01504268 + t*(-0.00780353 + t*(0.00325614 - t*0.00068245))))))
+
+
+# ─────────────────────────────────────────────────────────────────────────────
+# KROUPA IMF — 해석적 평균 질량 (Step 23)
+# ─────────────────────────────────────────────────────────────────────────────
+
+static func kroupa_mean_mass_msun() -> float:
+	# Kroupa (2001) broken power law:
+	#   dN/dm ∝ m^{-1.3}  (0.08 ≤ m < 0.5 Msun)
+	#   dN/dm ∝ m^{-2.3}  (0.5 ≤ m ≤ 150 Msun)
+	# 연속성 조건: A_hi = A_lo × m_break = 0.5 × A_lo
+	# 수 적분: ∫m^α dm = m^{α+1}/(α+1)
+	# 질량 적분: ∫m·m^α dm = m^{α+2}/(α+2)
+	const M_LO:    float = 0.08
+	const M_BR:    float = 0.50
+	const M_HI:    float = 150.0
+	const A_RATIO: float = 0.5   # A_hi/A_lo
+
+	var dN_lo := (pow(M_BR, -0.3) - pow(M_LO, -0.3)) / (-0.3)
+	var dN_hi := A_RATIO * (pow(M_HI, -1.3) - pow(M_BR, -1.3)) / (-1.3)
+	var dM_lo := (pow(M_BR,  0.7) - pow(M_LO,  0.7)) /  0.7
+	var dM_hi := A_RATIO * (pow(M_HI, -0.3) - pow(M_BR, -0.3)) / (-0.3)
+
+	return (dM_lo + dM_hi) / (dN_lo + dN_hi)   # ≈ 0.329 Msun
+
+
+# ─────────────────────────────────────────────────────────────────────────────
+# ROTATION CURVE COMPONENTS  (Step 25)
+# 단위: 입력 kpc / Msun / (kpc³·Msun⁻¹), 반환 V² [(km/s)²]
+# ─────────────────────────────────────────────────────────────────────────────
+
+## NFW 암흑물질 헤일로 기여
+static func v2_nfw(R_kpc: float, rs_kpc: float, rho_s_msun_kpc3: float) -> float:
+	if R_kpc < 1e-6:
+		return 0.0
+	var x     := R_kpc / rs_kpc
+	var M_enc := 4.0 * PI * rho_s_msun_kpc3 * rs_kpc * rs_kpc * rs_kpc * g_nfw(x)
+	return G_KPC_KM2_S2_MSUN * M_enc / R_kpc
+
+
+## Freeman(1970) 지수 디스크 기여
+## V²(R) = (G M_disk / Rd) · 2y² · [I₀(y)K₀(y) - I₁(y)K₁(y)],  y = R/(2Rd)
+static func v2_disk(R_kpc: float, M_disk_msun: float, Rd_kpc: float) -> float:
+	if R_kpc < 1e-6 or Rd_kpc < 1e-6 or M_disk_msun <= 0.0:
+		return 0.0
+	var y : float = clamp(R_kpc / (2.0 * Rd_kpc), 1e-6, 15.0)
+	var bk := _bessel_I0(y) * _bessel_K0(y) - _bessel_I1(y) * _bessel_K1(y)
+	return max(G_KPC_KM2_S2_MSUN * M_disk_msun / Rd_kpc * 2.0 * y * y * bk, 0.0)
+
+
+## Hernquist(1990) 벌지 기여
+## V²(R) = G M r / (r + a)²
+## Sérsic r_eff → Hernquist a 변환: a = r_eff / 1.815 (2D projected half-mass 조건)
+static func v2_hernquist(R_kpc: float, M_bulge_msun: float, a_kpc: float) -> float:
+	if R_kpc < 1e-6 or M_bulge_msun <= 0.0 or a_kpc < 1e-9:
+		return 0.0
+	return G_KPC_KM2_S2_MSUN * M_bulge_msun * R_kpc / ((R_kpc + a_kpc) * (R_kpc + a_kpc))
+
+
+## 합산 회전 속도 V_circ(R) [km/s]
+static func rotation_curve_kms(
+	R_kpc:         float,
+	rs_kpc:        float,
+	rho_s_msun_kpc3: float,
+	M_disk_msun:   float,
+	Rd_kpc:        float,
+	M_bulge_msun:  float,
+	r_eff_kpc:     float   # Sérsic → Hernquist: a = r_eff / 1.815
+) -> float:
+	var a_kpc := r_eff_kpc / 1.815
+	var v2    := v2_nfw(R_kpc, rs_kpc, rho_s_msun_kpc3) \
+			   + v2_disk(R_kpc, M_disk_msun, Rd_kpc) \
+			   + v2_hernquist(R_kpc, M_bulge_msun, a_kpc)
+	return sqrt(max(v2, 0.0))
+
+
+# ─────────────────────────────────────────────────────────────────────────────
+# EPICYCLIC FREQUENCY & TOOMRE Q  (Step 26)
+# ─────────────────────────────────────────────────────────────────────────────
+
+## 이심 진동 진동수 κ [km/s/kpc], 수치 미분으로 계산
+## κ² = (2V/R)(dV/dR + V/R)
+static func epicyclic_kms_kpc(
+	R_kpc:           float,
+	rs_kpc:          float,
+	rho_s_msun_kpc3: float,
+	M_disk_msun:     float,
+	Rd_kpc:          float,
+	M_bulge_msun:    float,
+	r_eff_kpc:       float,
+	dR:              float = 0.02   # 수치 미분 스텝 [kpc]
+) -> float:
+	if R_kpc < 1e-6:
+		return 0.0
+	var R1: float = max(R_kpc - dR, dR)
+	var R2 := R_kpc + dR
+	var V  := rotation_curve_kms(R_kpc, rs_kpc, rho_s_msun_kpc3, M_disk_msun, Rd_kpc, M_bulge_msun, r_eff_kpc)
+	var V1 := rotation_curve_kms(R1,    rs_kpc, rho_s_msun_kpc3, M_disk_msun, Rd_kpc, M_bulge_msun, r_eff_kpc)
+	var V2 := rotation_curve_kms(R2,    rs_kpc, rho_s_msun_kpc3, M_disk_msun, Rd_kpc, M_bulge_msun, r_eff_kpc)
+	if V < 1e-6:
+		return 0.0
+	var dVdR  := (V2 - V1) / (R2 - R1)
+	var Omega := V / R_kpc
+	return sqrt(max(2.0 * Omega * (dVdR + Omega), 0.0))
+
+
+## 별 디스크 Toomre Q (Binney & Tremaine 2008, eq. 6.71)
+## Q = σ_R · κ / (3.36 G Σ)
+static func toomre_q(
+	sigma_R_kms:      float,
+	kappa_kms_kpc:    float,
+	Sigma_msun_kpc2:  float
+) -> float:
+	if Sigma_msun_kpc2 < 1e-6 or kappa_kms_kpc < 1e-6:
+		return 1e6
+	return sigma_R_kms * kappa_kms_kpc / (3.36 * G_KPC_KM2_S2_MSUN * Sigma_msun_kpc2)
+
+
+## Hill 반지름 [kpc]: r_H ≈ R · (m / 3M_enc)^{1/3}
+## M_enc(R) ≈ V_c² R / G (원형 궤도 근사)
+static func hill_radius_kpc(
+	R_kpc:       float,
+	m_star_msun: float,
+	V_c_kms:     float
+) -> float:
+	if V_c_kms < 1.0 or R_kpc < 1e-4:
+		return 0.0
+	var M_enc := V_c_kms * V_c_kms * R_kpc / G_KPC_KM2_S2_MSUN
+	return R_kpc * pow(m_star_msun / max(3.0 * M_enc, 1e-30), 1.0 / 3.0)
