@@ -98,7 +98,61 @@ enum HashPurpose {
 	GALAXY_STAR_PHI_UNIFORM,   # 균일 방위각
 	GALAXY_STAR_PHI_ARM_SEL,   # 팔 인덱스 선택
 	GALAXY_STAR_PHI_ARM_JIT,   # 팔 중심 주변 가우시안 산포
+	GALAXY_Z_FORM,   # [use] z_form sampling
+	GALAXY_HALO_SPIN,# [use] halo spin sampling
+	STAR_MASS        # [use] IMF star mass sampling
 }
+
+
+const SOLAR_OH12: float = 8.69 # [use] feh = (12+log(O/H)) - solar zero-point
+
+static func e_z(z: float, omega_m0: float = OMEGA_M0, omega_l0: float = OMEGA_L0) -> float:
+	var ez2 := omega_m0 * pow(1.0 + z, 3.0) + omega_l0
+	return sqrt(ez2)
+
+static func hubble_time_gyr(h0_km_s_mpc: float = H0_KM_S_MPC) -> float:
+	# 9.778 Gyr at H0=100 km/s/Mpc
+	return 9.778 / (h0_km_s_mpc / 100.0)
+
+static func lookback_time_gyr_from_z(
+	z: float,
+	h0_km_s_mpc: float = H0_KM_S_MPC,
+	omega_m0: float = OMEGA_M0,
+	omega_l0: float = OMEGA_L0
+) -> float:
+	# [use] z_form -> age_gyr 변환용
+	z = max(z, 0.0)
+	if z < 1e-9:
+		return 0.0
+
+	var n: int = 256
+	var h := z / float(n)
+	var sum := 0.0
+
+	for i in range(n + 1):
+		var zz := h * float(i)
+		var weight := 1.0
+		if i != 0 and i != n:
+			weight = 4.0 if (i % 2 == 1) else 2.0
+		sum += weight / ((1.0 + zz) * e_z(zz, omega_m0, omega_l0))
+
+	return hubble_time_gyr(h0_km_s_mpc) * h * sum / 3.0
+
+static func feh_from_oh12(oh12: float, solar_oh12: float = SOLAR_OH12) -> float:
+	# [use] metallicity(OH) -> stellar evolution metallicity proxy
+	return oh12 - solar_oh12
+
+static func sample_z_form(galaxy_seed: int) -> float:
+	# [use] formation redshift prior from the user's spec:
+	# z_form ~ LogNormal(mu=0.8, sigma=0.5)
+	var z_scatter := random_normal(galaxy_seed, HashPurpose.GALAXY_Z_FORM, 0)
+	return max(exp(0.8 + 0.5 * z_scatter), 0.05)
+
+static func sample_halo_spin(galaxy_seed: int) -> float:
+	# [use] halo_spin -> disk size/shape
+	# Bullock-style lognormal spin proxy; mean ~0.035.
+	var z_spin := random_normal(galaxy_seed, HashPurpose.GALAXY_HALO_SPIN, 0)
+	return clamp(exp(log(0.035) + 0.55 * z_spin), 0.005, 0.15)
 
 # f_baryon
 static func get_Z(u1: float, u2: float) -> float: # 표준정규분포시드
@@ -489,23 +543,13 @@ static func sample_disk_scale_length_si(
 	galaxy_seed: int,
 	m_disk_star_kg: float,
 	z: float = 0.0,
-	r200c_kpc: float = -1.0
+	r200c_kpc: float = -1.0,
+	halo_spin: float = 0.035
 ) -> Dictionary:
-	# SI input/output
-	# - mass: kg
-	# - length: m
-	#
-	# Observational anchor:
-	# late-type size-mass relation from van der Wel et al. 2014
-	# Reff/kpc = A * (M*/5e10 Msun)^alpha
-	# log10(A/kpc)=0.86 at z=0.25, alpha=0.25, scatter=0.16 dex
-	# size evolution for late types: Reff ∝ (1+z)^-0.75
-	#
-	# Exponential disk conversion:
-	# Rd = Reff / 1.678
-
+	# [use] halo_spin -> disk size scaling
+	# Observational size-mass relation + Mo, Mao & White spin modulation.
 	const KPC_M: float = 3.0856775814913673e19
-	const MREF_KG: float = 5.0e10 * SOLAR_MASS
+	const MREF_KG: float = 5.0e10 * C.SOLAR_MASS
 	const Z_REF: float = 0.25
 
 	const LOG10_A_REF_KPC: float = 0.86
@@ -517,21 +561,20 @@ static func sample_disk_scale_length_si(
 		Log.error(103, "res://scripts/core/constants.gd")
 		return {}
 
-	# independent deterministic scatter for size
-	var u1: float = max(hash_float(galaxy_seed, HashPurpose.GALAXY_DISK_SCALE_LENGTH, 0), 1e-12)
-	var u2 := hash_float(galaxy_seed, HashPurpose.GALAXY_DISK_SCALE_LENGTH, 1)
-	var z_scatter := get_Z(u1, u2)
+	var u1: float = max(C.hash_float(galaxy_seed, C.HashPurpose.GALAXY_DISK_SCALE_LENGTH, 0), 1e-12)
+	var u2 := C.hash_float(galaxy_seed, C.HashPurpose.GALAXY_DISK_SCALE_LENGTH, 1)
+	var z_scatter := C.get_Z(u1, u2)
+
+	var spin_boost: float = clamp(halo_spin, 0.005, 0.15) / 0.035
 
 	var log10_reff_kpc := LOG10_A_REF_KPC \
-		+ ALPHA_M * logx(m_disk_star_kg / MREF_KG) \
-		+ BETA_Z * logx((1.0 + z) / (1.0 + Z_REF))
+		+ ALPHA_M * C.logx(m_disk_star_kg / MREF_KG) \
+		+ BETA_Z * C.logx((1.0 + z) / (1.0 + Z_REF)) \
+		+ C.logx(spin_boost)
 
 	var log10_reff_kpc_sampled := log10_reff_kpc + SIGMA_DEX_RE * z_scatter
 	var reff_kpc := pow(10.0, log10_reff_kpc_sampled)
 	var rd_kpc := reff_kpc / 1.678
-
-	var rd_m := rd_kpc * KPC_M
-	var reff_m := reff_kpc * KPC_M
 
 	var rd_halo_check_m := NAN
 	var reff_halo_check_m := NAN
@@ -540,12 +583,12 @@ static func sample_disk_scale_length_si(
 		rd_halo_check_m = (0.015 * r200c_kpc / 1.678) * KPC_M
 
 	return {
-		"r_eff_m": reff_m,
-		"r_d_m": rd_m,
+		"r_eff_m": reff_kpc * KPC_M,
+		"r_d_m": rd_kpc * KPC_M,
 		"r_eff_kpc": reff_kpc,
 		"r_d_kpc": rd_kpc,
 		"log10_r_eff_kpc": log10_reff_kpc_sampled,
-		"log10_r_d_kpc": log10_reff_kpc_sampled - logx(1.678),
+		"log10_r_d_kpc": log10_reff_kpc_sampled - C.logx(1.678),
 		"r_eff_halo_check_m": reff_halo_check_m,
 		"r_d_halo_check_m": rd_halo_check_m,
 		"sigma_dex": SIGMA_DEX_RE
@@ -558,21 +601,23 @@ static func sample_disk_scale_length_from_galaxy(
 	f_gas_: float,
 	f_disk: float,
 	z: float = 0.0,
-	r200c_kpc: float = -1.0
+	r200c_kpc: float = -1.0,
+	halo_spin: float = 0.035
 ) -> Dictionary:
-	# disk stellar mass in kg
+	# [use] halo_spin -> size scaling
 	var m_star_total_kg := m_vir_kg * f_baryon_ * (1.0 - f_gas_)
 	var m_disk_star_kg: float = m_star_total_kg * clamp(f_disk, 1e-6, 1.0)
-	return sample_disk_scale_length_si(galaxy_seed, m_disk_star_kg, z, r200c_kpc)
+	return sample_disk_scale_length_si(galaxy_seed, m_disk_star_kg, z, r200c_kpc, halo_spin)
 
 #DISK THICKNESS
-static func sample_disk_thickness_si( # z = (관측된 파장 - 원래 파장) / 원래 파장
+static func sample_disk_thickness_si(
 	galaxy_seed: int,
 	r_d_m: float,
 	m_disk_star_kg: float,
 	f_gas_: float,
 	s_morph: float,
-	z: float = 0.0
+	z: float = 0.0,
+	halo_spin: float = 0.035
 ) -> Dictionary:
 	const KPC_M: float = 3.0856775814913673e19
 
@@ -584,33 +629,31 @@ static func sample_disk_thickness_si( # z = (관측된 파장 - 원래 파장) /
 		Log.error(105, "res://scripts/core/constants.gd")
 		return {}
 
-	# 두께 비율 q = z0 / Rd
-	# 평균은 얇은 원반(대략 0.1~0.15) 근처,
-	# 가스가 많으면 더 얇고, 벌지 비중이 크면 더 두껍게.
+	# [use] halo_spin -> disk thickness shape
 	const Q0: float = 0.12
 	const Q_MIN: float = 0.03
 	const Q_MAX: float = 0.50
 	const SIGMA_LOGIT: float = 0.35
 
-	# morphology score -> bulge probability
-	var p_bulge := sigmoid(s_morph)
+	var p_bulge := C.sigmoid(s_morph)
+	var logM := C.logx(m_disk_star_kg / C.SOLAR_MASS)
+	var gas_logit := C.logit(clamp(f_gas_, 1e-6, 1.0 - 1e-6))
 
-	var logM := logx(m_disk_star_kg / SOLAR_MASS)
-	var gas_logit := logit(clamp(f_gas_, 1e-6, 1.0 - 1e-6))
+	var u1: float = max(C.hash_float(galaxy_seed, C.HashPurpose.GALAXY_DISK_THICKNESS, 0), 1e-12)
+	var u2 := C.hash_float(galaxy_seed, C.HashPurpose.GALAXY_DISK_THICKNESS, 1)
+	var z_scatter := C.get_Z(u1, u2)
 
-	var u1: float = max(hash_float(galaxy_seed, HashPurpose.GALAXY_DISK_THICKNESS, 0), 1e-12)
-	var u2 := hash_float(galaxy_seed, HashPurpose.GALAXY_DISK_THICKNESS, 1)
-	var Z := get_Z(u1, u2)
+	var spin_term := -0.12 * C.logx(clamp(halo_spin, 0.005, 0.15) / 0.035)
 
-	# q가 항상 양수이도록 logistic-normal 사용
-	var x := logit((Q0 - Q_MIN) / (Q_MAX - Q_MIN)) \
+	var x := C.logit((Q0 - Q_MIN) / (Q_MAX - Q_MIN)) \
 		+ 1.10 * (p_bulge - 0.30) \
-		- 0.90 * (gas_logit - logit(0.30)) \
+		- 0.90 * (gas_logit - C.logit(0.30)) \
 		+ 0.10 * (logM - 10.5) \
-		+ 0.3 * logx(1.0 + z) \
-		+ SIGMA_LOGIT * Z
-		
-	var q: float = Q_MIN + (Q_MAX - Q_MIN) * sigmoid(x)
+		+ 0.3 * C.logx(1.0 + z) \
+		+ spin_term \
+		+ SIGMA_LOGIT * z_scatter
+
+	var q: float = Q_MIN + (Q_MAX - Q_MIN) * C.sigmoid(x)
 	var z0_m := q * r_d_m
 
 	return {
@@ -1244,30 +1287,6 @@ static func _bessel_K1(x: float) -> float:
 	var t := 2.0 / x
 	return (exp(-x) / sqrt(x)) * (1.25331414 + t*(0.23498619
 		+ t*(-0.03655620 + t*(0.01504268 + t*(-0.00780353 + t*(0.00325614 - t*0.00068245))))))
-
-
-# ─────────────────────────────────────────────────────────────────────────────
-# KROUPA IMF — 해석적 평균 질량 (Step 23)
-# ─────────────────────────────────────────────────────────────────────────────
-
-static func kroupa_mean_mass_msun() -> float:
-	# Kroupa (2001) broken power law:
-	#   dN/dm ∝ m^{-1.3}  (0.08 ≤ m < 0.5 Msun)
-	#   dN/dm ∝ m^{-2.3}  (0.5 ≤ m ≤ 150 Msun)
-	# 연속성 조건: A_hi = A_lo × m_break = 0.5 × A_lo
-	# 수 적분: ∫m^α dm = m^{α+1}/(α+1)
-	# 질량 적분: ∫m·m^α dm = m^{α+2}/(α+2)
-	const M_LO:    float = 0.08
-	const M_BR:    float = 0.50
-	const M_HI:    float = 150.0
-	const A_RATIO: float = 0.5   # A_hi/A_lo
-
-	var dN_lo := (pow(M_BR, -0.3) - pow(M_LO, -0.3)) / (-0.3)
-	var dN_hi := A_RATIO * (pow(M_HI, -1.3) - pow(M_BR, -1.3)) / (-1.3)
-	var dM_lo := (pow(M_BR,  0.7) - pow(M_LO,  0.7)) /  0.7
-	var dM_hi := A_RATIO * (pow(M_HI, -0.3) - pow(M_BR, -0.3)) / (-0.3)
-
-	return (dM_lo + dM_hi) / (dN_lo + dN_hi)   # ≈ 0.329 Msun
 
 
 # ─────────────────────────────────────────────────────────────────────────────

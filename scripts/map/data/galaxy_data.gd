@@ -14,7 +14,13 @@ var type: int
 
 var galaxy_seed: int
 
+var z_form: float            # [use] formation redshift
+var age_gyr: float           # [use] z_form -> lookback age
+var halo_spin: float        # [use] disk size/shape
+var feh_center: float       # [use] stellar evolution metallicity proxy
+
 var m_vir: float
+var m_gas: float            # [use] m_gas -> SFR / IMF influence
 var f_baryon: float
 var f_gas: float
 var f_bulge: float
@@ -37,4 +43,4 @@ var z_center_12_log_oh: float
 var z_gradient_dex_per_kpc: float
 var z_scatter_dex: float
 
-var systems: Array[SystemData] =[]
+var systems: Array[SystemData] = []

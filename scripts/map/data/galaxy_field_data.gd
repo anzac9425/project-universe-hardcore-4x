@@ -10,3 +10,4 @@ var toomre_profile: Dictionary
 var stable_inner_radius_kpc: float
 
 var positions_kpc: PackedVector2Array
+var star_population: Dictionary = {} # [use] StarPhysics 결과 묶음

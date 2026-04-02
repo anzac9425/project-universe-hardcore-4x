@@ -60,11 +60,14 @@ static func _halo_get(halo, key: StringName, default_value):
 
 static func sample_spiral_params(
 	galaxy_seed: int,
-	galaxy_type_is_spiral: bool,
+	galaxy_type: int,
 	f_gas: float,
-	log10_m_star_msun: float
+	log10_m_star_msun: float,
+	halo_spin: float
 ) -> Dictionary:
-	if not galaxy_type_is_spiral:
+	# [use] galaxy_type -> arm existence / morphology
+	# [use] halo_spin -> pitch/contrast modulation
+	if galaxy_type == GalaxyData.GalaxyType.E or galaxy_type == GalaxyData.GalaxyType.S0:
 		return {
 			"has_arms": false,
 			"arm_count": 0,
@@ -73,25 +76,34 @@ static func sample_spiral_params(
 			"phases": []
 		}
 
-	# Step 17: 팔 개수
 	var u_arm := _u(galaxy_seed, C.HashPurpose.GALAXY_SPIRAL_ARM_COUNT, 0)
-	var arm_count: int = 4 if u_arm < 0.25 else 2
+	var arm_count: int = 2
 
-	# Step 18: 피치각
+	match galaxy_type:
+		GalaxyData.GalaxyType.Sa:
+			arm_count = 2
+		GalaxyData.GalaxyType.Sb:
+			arm_count = 2 if u_arm < 0.55 else 4
+		GalaxyData.GalaxyType.Sc:
+			arm_count = 4 if u_arm < 0.70 else 2
+		GalaxyData.GalaxyType.Irr:
+			arm_count = 0
+		_:
+			arm_count = 2
+
 	var z_pitch := _normal_from_hash(galaxy_seed, C.HashPurpose.GALAXY_SPIRAL_PITCH, 0)
-	var mu_pitch: float = 22.0 - 3.5 * clamp(log10_m_star_msun - 10.5, -1.5, 1.5)
+	var spin_term := C.logx(max(halo_spin, 1e-6) / 0.035)
+	var mu_pitch: float = 22.0 - 3.5 * clamp(log10_m_star_msun - 10.5, -1.5, 1.5) + 4.0 * spin_term
 	var pitch_deg: float = clamp(mu_pitch + 5.0 * z_pitch, 5.0, 35.0)
 
-	# Step 19: 팔 강도
 	var z_contrast := _normal_from_hash(galaxy_seed, C.HashPurpose.GALAXY_SPIRAL_CONTRAST, 0)
-	var contrast: float = clamp(0.30 + 0.90 * f_gas + 0.20 * z_contrast, 0.05, 2.5)
+	var contrast: float = clamp((0.30 + 0.90 * f_gas + 0.20 * z_contrast) * (1.0 + 0.20 * spin_term), 0.05, 2.5)
 
-	# Step 20: 팔 위상 오프셋
 	var phases: Array = []
 	for k in range(arm_count):
 		var base := TAU * float(k) / float(arm_count)
 		var u_off := _u(galaxy_seed, C.HashPurpose.GALAXY_SPIRAL_PHASE, k)
-		phases.append(base + 0.40 * (u_off - 0.5)) # ±0.2 rad
+		phases.append(base + 0.40 * (u_off - 0.5)) # [use] arm phase offset
 
 	return {
 		"has_arms": true,
@@ -100,6 +112,13 @@ static func sample_spiral_params(
 		"contrast": contrast,
 		"phases": phases
 	}
+	
+	
+
+
+
+
+
 
 
 # ───────────────────────────────────────────────────────────────────────────
@@ -537,11 +556,16 @@ static func build_galaxy_field(
 	n_sersic: float,
 	f_disk: float,
 	f_bulge: float,
-	galaxy_type_is_spiral: bool,
+	galaxy_type: int,
 	f_gas: float,
-	log10_m_star_msun: float
+	age_gyr: float,
+	feh: float,
+	halo_spin: float,
+	m_gas_msun: float
 ) -> Dictionary:
-	var spiral := sample_spiral_params(galaxy_seed, galaxy_type_is_spiral, f_gas, log10_m_star_msun)
+	# [use] galaxy_type -> spiral structure
+	# [use] age_gyr / feh / m_gas / halo_spin -> StarPhysics population
+	var spiral := sample_spiral_params(galaxy_seed, galaxy_type, f_gas, C.logx(max(M_star_msun, 1e-6)), halo_spin)
 
 	var n_star := compute_n_star(M_star_msun)
 
@@ -549,27 +573,12 @@ static func build_galaxy_field(
 	if Rd_kpc > 0.0:
 		sigma0 = M_disk_msun / (TAU * Rd_kpc * Rd_kpc)
 
-	var rc := build_rotation_curve(
-		halo,
-		M_disk_msun,
-		Rd_kpc,
-		M_bulge_msun,
-		r_eff_kpc
-	)
+	var rc := build_rotation_curve(halo, M_disk_msun, Rd_kpc, M_bulge_msun, r_eff_kpc)
 
 	var v_ref := v_at_R(rc, max(2.2 * Rd_kpc, 0.1))
 	var sigma_R := estimate_sigma_R_kms(v_ref)
 
-	var toomre := build_toomre_profile(
-		halo,
-		M_disk_msun,
-		Rd_kpc,
-		sigma0,
-		M_bulge_msun,
-		r_eff_kpc,
-		sigma_R
-	)
-
+	var toomre := build_toomre_profile(halo, M_disk_msun, Rd_kpc, sigma0, M_bulge_msun, r_eff_kpc, sigma_R)
 	var stable_R := stable_inner_radius_kpc(toomre)
 
 	var positions := sample_star_positions_kpc(
@@ -584,11 +593,22 @@ static func build_galaxy_field(
 		stable_R
 	)
 
+	var star_population := StarPhysics.build_star_population(
+		galaxy_seed,
+		n_star,
+		age_gyr,
+		feh,
+		galaxy_type,
+		m_gas_msun, # [use] m_gas -> IMF bias
+		halo_spin
+	)
+
 	return {
 		"spiral": spiral,
 		"n_star": n_star,
 		"rotation_curve": rc,
 		"toomre_profile": toomre,
 		"stable_inner_radius_kpc": stable_R,
-		"positions_kpc": positions
+		"positions_kpc": positions,
+		"star_population": star_population
 	}

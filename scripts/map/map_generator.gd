@@ -1,45 +1,76 @@
 extends Node
 class_name MapGenerator
 
-static func generate(
-	base_seed: int
-) -> GalaxyData:
-
+static func generate(base_seed: int) -> GalaxyData:
 	var galaxy = GalaxyData.new()
 
-	var galaxy_seed = C.hash_int(base_seed, C.HashPurpose.GALAXY)
+	var galaxy_seed := C.hash_int(base_seed, C.HashPurpose.GALAXY)
 	galaxy.galaxy_seed = galaxy_seed
 
-	var u1 = C.hash_float(galaxy_seed, C.HashPurpose.GALAXY, 0)
-	var u2 = C.hash_float(galaxy_seed, C.HashPurpose.GALAXY, 1)
+	# [use] z_form -> age_gyr
+	var z_form := C.sample_z_form(galaxy_seed)
+	var z_obs: float = 0.0
+	var age_gyr: float = max(
+		C.lookback_time_gyr_from_z(z_form) - C.lookback_time_gyr_from_z(z_obs),
+		0.0
+	)
+	galaxy.z_form = z_form
+	galaxy.age_gyr = age_gyr
 
-	var m_vir_msun = pow(10.0, C.M_GAL_MU + C.M_GAL_SIGMA * C.get_Z(u1, u2))
-	var m_vir = m_vir_msun * C.SOLAR_MASS
+	# [use] halo_spin -> disk size / thickness / spiral structure
+	var halo_spin := C.sample_halo_spin(galaxy_seed)
+	galaxy.halo_spin = halo_spin
+
+	var u1 := C.hash_float(galaxy_seed, C.HashPurpose.GALAXY, 0)
+	var u2 := C.hash_float(galaxy_seed, C.HashPurpose.GALAXY, 1)
+
+	var m_vir_msun := pow(10.0, C.M_GAL_MU + C.M_GAL_SIGMA * C.get_Z(u1, u2))
+	var m_vir := m_vir_msun * C.SOLAR_MASS
 	galaxy.m_vir = m_vir
 
-	var z = 0.0
+	var z := z_obs # [use] observation redshift in all downstream fits
 
-	var f_baryon = C.f_baryon(galaxy_seed, m_vir)
+	var f_baryon := C.f_baryon(galaxy_seed, m_vir)
 	galaxy.f_baryon = f_baryon
 
-	var m_baryon = m_vir * f_baryon
+	var m_baryon := m_vir * f_baryon
 
 	var delta_physics := C.Delta_physics(galaxy_seed)
 	var f_gas := C.f_gas(galaxy_seed, m_vir, f_baryon, z, delta_physics)
 	galaxy.f_gas = f_gas
 
-	var m_gas  = m_baryon * f_gas
-	var m_star = m_baryon * (1.0 - f_gas)
+	var m_gas := m_baryon * f_gas
+	var m_star := m_baryon * (1.0 - f_gas)
+	galaxy.m_gas = m_gas # [use] m_gas -> star population IMF bias
 
-	var f_star_halo = C.f_star_halo(galaxy_seed, m_star, f_gas)
+	var f_star_halo := C.f_star_halo(galaxy_seed, m_star, f_gas)
 	galaxy.f_star_halo = f_star_halo
 
-	var bulge_disk_dict = C.f_bulge_disk(galaxy_seed, m_star, f_gas, delta_physics, f_star_halo)
+	var bulge_disk_dict := C.f_bulge_disk(galaxy_seed, m_star, f_gas, delta_physics, f_star_halo)
 	var f_bulge: float = bulge_disk_dict["f_bulge"]
-	var f_disk: float  = bulge_disk_dict["f_disk"]
+	var f_disk: float = bulge_disk_dict["f_disk"]
 	var s_morph: float = bulge_disk_dict["s_morph"]
 	galaxy.f_bulge = f_bulge
-	galaxy.f_disk  = f_disk
+	galaxy.f_disk = f_disk
+
+	# [use] structural parameters -> galaxy.type
+	var type_score := 1.60 * f_bulge - 1.20 * f_gas + 0.35 * f_star_halo + 0.25 * delta_physics \
+		+ 0.20 * C.logx(max(halo_spin, 1e-6) / 0.035)
+
+	var galaxy_type := GalaxyData.GalaxyType.Sc
+	if f_star_halo > 0.72 and f_gas < 0.12:
+		galaxy_type = GalaxyData.GalaxyType.E
+	elif f_star_halo > 0.55 and f_gas < 0.20:
+		galaxy_type = GalaxyData.GalaxyType.S0
+	elif type_score > 0.85:
+		galaxy_type = GalaxyData.GalaxyType.Sa
+	elif type_score > 0.20:
+		galaxy_type = GalaxyData.GalaxyType.Sb
+	elif type_score > -0.25:
+		galaxy_type = GalaxyData.GalaxyType.Sc
+	else:
+		galaxy_type = GalaxyData.GalaxyType.Irr
+	galaxy.type = galaxy_type
 
 	# --- DM halo ---
 	var halo_dict := C.halo_state_from_mvir(galaxy_seed, m_vir, z)
@@ -60,9 +91,21 @@ static func generate(
 	halo.rho_crit_msun_kpc3 = halo_dict["rho_crit_msun_kpc3"]
 	galaxy.halo = halo
 
+	# --- metallicity -> feh ---
+	var metallicity_dict := C.sample_metallicity_profile(galaxy_seed, C.logx(max(m_star / C.SOLAR_MASS, 1e-6)))
+	if metallicity_dict.is_empty():
+		Log.error(ERR_CODE.MAP_GENERATION_FAILED, "MapGenerator.gd", "METALLICITY")
+		return null
+	galaxy.z_center_12_log_oh = metallicity_dict["z_center_12_log_oh"]
+	galaxy.z_gradient_dex_per_kpc = metallicity_dict["gradient_dex_per_kpc"]
+	galaxy.z_scatter_dex = metallicity_dict["scatter_dex"]
+
+	var feh := C.feh_from_oh12(galaxy.z_center_12_log_oh)
+	galaxy.feh_center = feh # [use] metallicity -> stellar evolution shift
+
 	# --- Disk scale length ---
 	var disk_size_dict := C.sample_disk_scale_length_from_galaxy(
-		galaxy_seed, m_vir, f_baryon, f_gas, f_disk, z, halo_dict["r200c_kpc"]
+		galaxy_seed, m_vir, f_baryon, f_gas, f_disk, z, halo_dict["r200c_kpc"], halo_spin
 	)
 	if disk_size_dict.is_empty():
 		Log.error(ERR_CODE.MAP_GENERATION_FAILED, "MapGenerator.gd", "DISK_SIZE")
@@ -70,7 +113,7 @@ static func generate(
 
 	var disk_size := DiskSize.new()
 	disk_size.r_eff_m = disk_size_dict["r_eff_m"]
-	disk_size.r_d_m  = disk_size_dict["r_d_m"]
+	disk_size.r_d_m = disk_size_dict["r_d_m"]
 	disk_size.r_eff_kpc = disk_size_dict["r_eff_kpc"]
 	disk_size.r_d_kpc = disk_size_dict["r_d_kpc"]
 	disk_size.log10_r_eff_kpc = disk_size_dict["log10_r_eff_kpc"]
@@ -82,7 +125,7 @@ static func generate(
 
 	# --- Disk thickness ---
 	var disk_thickness_dict := C.sample_disk_thickness_si(
-		galaxy_seed, disk_size_dict["r_d_m"], f_disk * m_star, f_gas, s_morph, z
+		galaxy_seed, disk_size_dict["r_d_m"], f_disk * m_star, f_gas, s_morph, z, halo_spin
 	)
 	if disk_thickness_dict.is_empty():
 		Log.error(ERR_CODE.MAP_GENERATION_FAILED, "MapGenerator.gd", "DISK_THICKNESS")
@@ -114,38 +157,36 @@ static func generate(
 	galaxy.bulge_profile = bulge_profile
 
 	# --- Accretion disk (SMBH) ---
-	# sample_accretion_disk_from_galaxy는 항상 비어있지 않은 Dict를 반환하므로
-	# is_empty() 대신 has_bh 플래그로 존재 여부를 판단한다.
 	var accretion_disk_dict := C.sample_accretion_disk_from_galaxy(
 		galaxy_seed, m_vir, f_baryon, f_gas, f_bulge, s_morph, z
 	)
 
 	var accretion_disk := AccretionDiskData.new()
-	accretion_disk.has_bh               = accretion_disk_dict["has_bh"]
-	accretion_disk.p_bh_exist           = accretion_disk_dict["p_bh_exist"]
-	accretion_disk.has_disk             = accretion_disk_dict["has_disk"]
-	accretion_disk.p_disk               = accretion_disk_dict["p_disk"]
-	accretion_disk.p_bh_mass            = accretion_disk_dict["p_bh_mass"]
-	accretion_disk.p_fuel               = accretion_disk_dict["p_fuel"]
-	accretion_disk.m_bh_kg              = accretion_disk_dict["m_bh_kg"]
-	accretion_disk.log10_m_bh_msun      = accretion_disk_dict["log10_m_bh_msun"]
-	accretion_disk.spin_a               = accretion_disk_dict["spin_a"]
-	accretion_disk.eta_rad              = accretion_disk_dict["eta_rad"]
-	accretion_disk.log10_lambda_proxy   = accretion_disk_dict["log10_lambda_proxy"]
-	accretion_disk.p_coherent           = accretion_disk_dict["p_coherent"]
-	accretion_disk.r_out_rg             = accretion_disk_dict["r_out_rg"]
+	accretion_disk.has_bh = accretion_disk_dict["has_bh"]
+	accretion_disk.p_bh_exist = accretion_disk_dict["p_bh_exist"]
+	accretion_disk.has_disk = accretion_disk_dict["has_disk"]
+	accretion_disk.p_disk = accretion_disk_dict["p_disk"]
+	accretion_disk.p_bh_mass = accretion_disk_dict["p_bh_mass"]
+	accretion_disk.p_fuel = accretion_disk_dict["p_fuel"]
+	accretion_disk.m_bh_kg = accretion_disk_dict["m_bh_kg"]
+	accretion_disk.log10_m_bh_msun = accretion_disk_dict["log10_m_bh_msun"]
+	accretion_disk.spin_a = accretion_disk_dict["spin_a"]
+	accretion_disk.eta_rad = accretion_disk_dict["eta_rad"]
+	accretion_disk.log10_lambda_proxy = accretion_disk_dict["log10_lambda_proxy"]
+	accretion_disk.p_coherent = accretion_disk_dict["p_coherent"]
+	accretion_disk.r_out_rg = accretion_disk_dict["r_out_rg"]
 	galaxy.accretion_disk = accretion_disk
-	
+
 	# --- AGN properties ---
 	var agn_dict := C.sample_agn_properties(
 		galaxy_seed,
 		accretion_disk_dict["log10_m_bh_msun"],
 		accretion_disk_dict["log10_lambda_proxy"],
-		accretion_disk_dict["has_bh"],   # ← 변경
+		accretion_disk_dict["has_bh"],
 		accretion_disk_dict["has_disk"],
 		f_gas
 	)
-	
+
 	accretion_disk.log10_l_bol_lsun = agn_dict["log10_l_bol_lsun"]
 	accretion_disk.log10_l_edd_lsun = agn_dict["log10_l_edd_lsun"]
 	accretion_disk.is_obscured = agn_dict["is_obscured"]
@@ -162,14 +203,14 @@ static func generate(
 		accretion_disk_dict["has_bh"],
 		accretion_disk_dict["has_disk"]
 	)
-	accretion_disk.has_jet            = jet_dict["has_jet"]
-	accretion_disk.p_jet              = jet_dict["p_jet"]
-	accretion_disk.log10_p_jet_w      = jet_dict["log10_p_jet_w"]
-	accretion_disk.jet_morphology     = jet_dict["jet_morphology"]
-	accretion_disk.jet_lorentz        = jet_dict["jet_lorentz"]
+	accretion_disk.has_jet = jet_dict["has_jet"]
+	accretion_disk.p_jet = jet_dict["p_jet"]
+	accretion_disk.log10_p_jet_w = jet_dict["log10_p_jet_w"]
+	accretion_disk.jet_morphology = jet_dict["jet_morphology"]
+	accretion_disk.jet_lorentz = jet_dict["jet_lorentz"]
 	accretion_disk.jet_half_angle_deg = jet_dict["jet_half_angle_deg"]
 
-	# --- Stellar population : SFR (Step 15) ---
+	# --- Stellar population : SFR ---
 	var sfr_dict := C.sample_sfr_from_galaxy(
 		galaxy_seed,
 		m_star,
@@ -188,28 +229,18 @@ static func generate(
 	galaxy.log10_sfr_sfms_msun_per_yr = sfr_dict["log10_sfr_sfms_msun_per_yr"]
 	galaxy.log10_sfr_quench_correction = sfr_dict["log10_quench_correction"]
 
-	# --- Stellar population : metallicity profile (Step 16) ---
-	var metallicity_dict := C.sample_metallicity_profile(
-		galaxy_seed,
-		sfr_dict["log10_m_star_msun"]
-	)
-	if metallicity_dict.is_empty():
-		Log.error(ERR_CODE.MAP_GENERATION_FAILED, "MapGenerator.gd", "METALLICITY")
-		return null
+	# --- Stellar population : metallicity profile ---
+	# [use] feh -> stellar evolution
 	galaxy.z_center_12_log_oh = metallicity_dict["z_center_12_log_oh"]
 	galaxy.z_gradient_dex_per_kpc = metallicity_dict["gradient_dex_per_kpc"]
 	galaxy.z_scatter_dex = metallicity_dict["scatter_dex"]
-	
-	# --- Phase 7: galaxy field / star distribution (Steps 17-26) ---
-	# 스파이럴 여부는 현재 morphology / disk dominance로 간단 판정
-	var is_spiral := (s_morph < 0.75)
 
-	# 질량 단위 변환: kg -> Msun
+	# --- Phase 7: galaxy field / star distribution ---
 	var m_star_msun: float = m_star / C.SOLAR_MASS
 	var m_disk_msun: float = (f_disk * m_star) / C.SOLAR_MASS
 	var m_bulge_msun: float = (f_bulge * m_star) / C.SOLAR_MASS
+	var m_gas_msun: float = m_gas / C.SOLAR_MASS # [use] m_gas -> StarPhysics IMF bias
 
-	# 나선 구조 + 별 분포 + 회전 곡선 + 안정성 필터를 한 번에 생성
 	var galaxy_field_dict: Dictionary = GalaxyField.build_galaxy_field(
 		galaxy_seed,
 		halo,
@@ -221,30 +252,38 @@ static func generate(
 		bulge_profile.n_sersic,
 		f_disk,
 		f_bulge,
-		is_spiral,
+		galaxy_type,
 		f_gas,
-		C.logx(max(m_star_msun, 1e-6))
+		age_gyr,
+		feh,
+		halo_spin,
+		m_gas_msun
 	)
+
 	var galaxy_field = GalaxyFieldData.new()
-	
 	galaxy_field.spiral = galaxy_field_dict["spiral"]
 	galaxy_field.n_star = galaxy_field_dict["n_star"]
 	galaxy_field.rotation_curve = galaxy_field_dict["rotation_curve"]
 	galaxy_field.toomre_profile = galaxy_field_dict["toomre_profile"]
 	galaxy_field.stable_inner_radius_kpc = galaxy_field_dict["stable_inner_radius_kpc"]
 	galaxy_field.positions_kpc = galaxy_field_dict["positions_kpc"]
-	
+	galaxy_field.star_population = galaxy_field_dict["star_population"] # [use] StarPhysics output
 	galaxy.galaxy_field = galaxy_field
-	
+
 	_log_galaxy(galaxy)
 	return galaxy
-
 
 static func _log_galaxy(galaxy: GalaxyData) -> void:
 	if not OS.is_debug_build():
 		return
 	Log.info("=== GalaxyData (seed: %s) ===" % galaxy.galaxy_seed)
+	Log.info("  z_form: %s" % galaxy.z_form)
+	Log.info("  age_gyr: %s" % galaxy.age_gyr)
+	Log.info("  halo_spin: %s" % galaxy.halo_spin)
+	Log.info("  feh_center: %s" % galaxy.feh_center)
+	Log.info("  type: %s" % galaxy.type)
 	Log.info("  m_vir / MILKYWAY: %s" % (galaxy.m_vir / C.MILKYWAY_MASS))
+	Log.info("  m_gas: %s" % galaxy.m_gas)
 	Log.info("  f_baryon: %s" % galaxy.f_baryon)
 	Log.info("  f_gas: %s " % galaxy.f_gas)
 	Log.info("  f_bulge: %s" % galaxy.f_bulge)
