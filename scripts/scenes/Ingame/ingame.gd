@@ -152,16 +152,42 @@ void fragment() {
 	return mat
 
 
-func _temperature_to_color(log10_t_eff_k: float) -> Color:
+func _temperature_to_color(log10_t_eff_k: float, sat: float = 0.55, value_mul: float = 1.0) -> Color:
 	if not is_finite(log10_t_eff_k):
 		return Color(0.35, 0.32, 0.42)
 
 	var t: float = clamp(pow(10.0, log10_t_eff_k), 800.0, 40000.0)
-	var x: float = clamp((t - 800.0) / (40000.0 - 800.0), 0.0, 1.0)
-	var r: float = clamp(1.0 - 0.45 * x, 0.40, 1.0)
-	var g: float = clamp(0.35 + 0.55 * sqrt(x), 0.25, 1.0)
-	var b: float = clamp(0.12 + 0.92 * x, 0.12, 1.0)
-	return Color(r, g, b)
+
+	var r8: float
+	var g8: float
+	var b8: float
+
+	var temp: float = t / 100.0
+
+	if temp <= 66.0:
+		r8 = 255.0
+		g8 = clamp(99.4708025861 * log(temp) - 161.1195681661, 0.0, 255.0)
+
+		if temp <= 19.0:
+			b8 = 0.0
+		else:
+			b8 = clamp(138.5177312231 * log(temp - 10.0) - 305.0447927307, 0.0, 255.0)
+	else:
+		r8 = clamp(329.698727446 * pow(temp - 60.0, -0.1332047592), 0.0, 255.0)
+		g8 = clamp(288.1221695283 * pow(temp - 60.0, -0.0755148492), 0.0, 255.0)
+		b8 = 255.0
+
+	var base := Color(r8 / 255.0, g8 / 255.0, b8 / 255.0)
+
+	# ✅ HSV 값 가져오기 (Godot 방식)
+	var h := base.h
+	var v := base.v
+
+	# 채도 고정 + 밝기 보정
+	var s: float = clamp(sat, 0.0, 1.0)
+	v = clamp(v * value_mul, 0.0, 1.0)
+
+	return Color.from_hsv(h, s, v)
 
 
 func _phase_tint(phase: int) -> Color:
