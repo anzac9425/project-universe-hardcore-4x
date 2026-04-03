@@ -62,6 +62,8 @@ func _build_star_field() -> void:
 	multimesh.transform_format = MultiMesh.TRANSFORM_2D
 	multimesh.use_colors = true
 	multimesh.use_custom_data = true
+	multimesh.mesh = QuadMesh.new()
+	multimesh.mesh.size = Vector2.ONE
 	multimesh.instance_count = n_star
 
 
@@ -80,10 +82,10 @@ func _build_star_field() -> void:
 		var remnant_norm := _normalize_remnant(remnant_m)
 		var phase_norm := float(phase) / 7.0
 
-		var scale := STAR_BASE_SIZE + STAR_MAX_SIZE * (0.55 * radius_norm + 0.45 * luminosity_norm)
+		var scale_ := STAR_BASE_SIZE + STAR_MAX_SIZE * (0.55 * radius_norm + 0.45 * luminosity_norm)
 		var xform := Transform2D(0.0, pos)
-		xform.x = Vector2(scale, 0.0)
-		xform.y = Vector2(0.0, scale)
+		xform.x = Vector2(scale_, 0.0)
+		xform.y = Vector2(0.0, scale_)
 		multimesh.set_instance_transform_2d(i, xform)
 
 		var temp_color := _temperature_to_color(log_t)
@@ -112,6 +114,12 @@ func _build_star_shader_material() -> ShaderMaterial:
 	shader.code = """
 shader_type canvas_item;
 
+varying vec4 instance_custom_data;
+
+void vertex() {
+	instance_custom_data = INSTANCE_CUSTOM;
+}
+
 void fragment() {
 	vec2 p = UV * 2.0 - vec2(1.0);
 	float r = length(p);
@@ -120,10 +128,10 @@ void fragment() {
 		discard;
 	}
 
-	float mass_norm = INSTANCE_CUSTOM.r;
-	float remnant_norm = INSTANCE_CUSTOM.g;
-	float phase_norm = INSTANCE_CUSTOM.b;
-	float lum_norm = INSTANCE_CUSTOM.a;
+	float mass_norm = instance_custom_data.r;
+	float remnant_norm = instance_custom_data.g;
+	float phase_norm = instance_custom_data.b;
+	float lum_norm = instance_custom_data.a;
 
 	float core = smoothstep(0.75, 0.0, r);
 	float glow = smoothstep(1.0, 0.15, r);
@@ -148,11 +156,11 @@ func _temperature_to_color(log10_t_eff_k: float) -> Color:
 	if not is_finite(log10_t_eff_k):
 		return Color(0.35, 0.32, 0.42)
 
-	var t := clamp(pow(10.0, log10_t_eff_k), 800.0, 40000.0)
-	var x := clamp((t - 800.0) / (40000.0 - 800.0), 0.0, 1.0)
-	var r := clamp(1.0 - 0.45 * x, 0.40, 1.0)
-	var g := clamp(0.35 + 0.55 * sqrt(x), 0.25, 1.0)
-	var b := clamp(0.12 + 0.92 * x, 0.12, 1.0)
+	var t: float = clamp(pow(10.0, log10_t_eff_k), 800.0, 40000.0)
+	var x: float = clamp((t - 800.0) / (40000.0 - 800.0), 0.0, 1.0)
+	var r: float = clamp(1.0 - 0.45 * x, 0.40, 1.0)
+	var g: float = clamp(0.35 + 0.55 * sqrt(x), 0.25, 1.0)
+	var b: float = clamp(0.12 + 0.92 * x, 0.12, 1.0)
 	return Color(r, g, b)
 
 

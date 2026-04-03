@@ -340,4 +340,3 @@ static func _log_galaxy(galaxy: GalaxyData) -> void:
 	Log.info("  spiral: %s" % galaxy.galaxy_field.spiral)
 	Log.info("  n_star: %s" % galaxy.galaxy_field.n_star)
 	Log.info("  stable_inner_radius_kpc: %s" % galaxy.galaxy_field.stable_inner_radius_kpc)
-	Log.info("  positions_kpc: %s" % galaxy.galaxy_field.positions_kpc)
