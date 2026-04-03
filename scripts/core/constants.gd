@@ -100,7 +100,9 @@ enum HashPurpose {
 	GALAXY_STAR_PHI_ARM_JIT,   # 팔 중심 주변 가우시안 산포
 	GALAXY_Z_FORM,   # [use] z_form sampling
 	GALAXY_HALO_SPIN,# [use] halo spin sampling
-	STAR_MASS        # [use] IMF star mass sampling
+	STAR_MASS,        # [use] IMF star mass sampling
+	GALAXY_STAR_R_HALO,    # halo 별 반경 샘플링 (log-uniform)
+	GALAXY_STAR_PHI_HALO   # halo 별 방위각 샘플링
 }
 
 

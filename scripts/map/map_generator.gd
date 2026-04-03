@@ -14,7 +14,7 @@ static func generate(base_seed: int) -> GalaxyData:
 		C.lookback_time_gyr_from_z(z_form) - C.lookback_time_gyr_from_z(z_obs),
 		0.0
 	)
-	age_gyr = 13.8
+	#age_gyr = 13.8
 	galaxy.z_form = z_form
 	galaxy.age_gyr = age_gyr
 
@@ -81,11 +81,13 @@ static func generate(base_seed: int) -> GalaxyData:
 
 	var halo := HaloData.new()
 	halo.m200c = halo_dict["m200c"]
+	halo.m200c_msun = halo_dict["m200c_msun"]
 	halo.c200 = halo_dict["c200"]
 	halo.r200c_kpc = halo_dict["r200c_kpc"]
 	halo.rs_kpc = halo_dict["rs_kpc"]
 	halo.rho_s_msun_kpc3 = halo_dict["rho_s_msun_kpc3"]
 	halo.mvir_pred = halo_dict["mvir_pred"]
+	halo.mvir_pred_msun = halo_dict["mvir_pred_msun"]
 	halo.cvir = halo_dict["cvir"]
 	halo.rvir_kpc = halo_dict["rvir_kpc"]
 	halo.delta_vir = halo_dict["delta_vir"]
@@ -253,6 +255,7 @@ static func generate(base_seed: int) -> GalaxyData:
 		bulge_profile.n_sersic,
 		f_disk,
 		f_bulge,
+		f_star_halo,    # 추가 ← galaxy.f_star_halo과 동일 값
 		galaxy_type,
 		f_gas,
 		age_gyr,
@@ -292,11 +295,13 @@ static func _log_galaxy(galaxy: GalaxyData) -> void:
 	Log.info("  f_star_halo: %s" % galaxy.f_star_halo)
 	Log.info("  --- halo ---")
 	Log.info("  m200c: %s" % galaxy.halo.m200c)
+	Log.info("  m200c_msun: %s" % galaxy.halo.m200c_msun)
 	Log.info("  c200: %s" % galaxy.halo.c200)
 	Log.info("  r200c_kpc: %s" % galaxy.halo.r200c_kpc)
 	Log.info("  rs_kpc: %s" % galaxy.halo.rs_kpc)
 	Log.info("  rho_s: %s" % galaxy.halo.rho_s_msun_kpc3)
 	Log.info("  mvir_pred: %s" % galaxy.halo.mvir_pred)
+	Log.info("  mvir_pred_msun: %s" % galaxy.halo.mvir_pred_msun)
 	Log.info("  cvir: %s" % galaxy.halo.cvir)
 	Log.info("  rvir_kpc: %s" % galaxy.halo.rvir_kpc)
 	Log.info("  delta_vir: %s" % galaxy.halo.delta_vir)
@@ -335,4 +340,4 @@ static func _log_galaxy(galaxy: GalaxyData) -> void:
 	Log.info("  spiral: %s" % galaxy.galaxy_field.spiral)
 	Log.info("  n_star: %s" % galaxy.galaxy_field.n_star)
 	Log.info("  stable_inner_radius_kpc: %s" % galaxy.galaxy_field.stable_inner_radius_kpc)
-	Log.info("  star_population: %s" % galaxy.galaxy_field.star_population)
+	Log.info("  positions_kpc: %s" % galaxy.galaxy_field.positions_kpc)

@@ -190,8 +190,8 @@ static func _remnant_properties(mass_msun: float, age_gyr: float, ms_life_gyr: f
 		"phase": StellarPhase.BH,
 		"phase_name": "BH",
 		"m_remnant_msun": m_bh,
-		"log10_l_lsun": -99.0,
-		"log10_t_eff_k": -99.0,
+		"log10_l_lsun": NAN,
+		"log10_t_eff_k": NAN,
 		"l_lsun": 0.0,
 		"t_eff_k": 0.0,
 		"r_rsun": r_s_rsun

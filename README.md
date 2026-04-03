@@ -1,12 +1,12 @@
 # Project Workflow
 
 ## Current Version
-- `dev-0.016`
+- `dev-0.017`
 - `ProceduralSystemGenerator.29`
 
 ## Git Commands
 ```bash
-cd /storage/emulated/0/Documents/alpha
+cd %path%
 git pull --rebase
 git add . && git commit -m "work"
 git push

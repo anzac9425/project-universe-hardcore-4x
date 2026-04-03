@@ -1,5 +1,8 @@
 은하 생성 절차
 
+## TODO
+Logistic Regression
+
 ━━━ PHASE 1: 전역 파라미터 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 
 1.  입력 파라미터 정의 #
@@ -8,7 +11,7 @@
 2.  결정론적 서브시드 파생 #
 	  - galaxy_seed = hash(global_seed, GALAXY)
 
-3.  은하 나이 / 형성 적색편이 샘플링
+3.  은하 나이 / 형성 적색편이 샘플링 #
 	  - z_form ~ 로그정규 (mu=0.8, sigma=0.5)
 	  - age_gyr = lookback_time(z_form)
 	  - 이후 SFR, 진화 단계, 금속도 모두 이 값에 조건부
@@ -116,7 +119,7 @@ _4.  은하 타입 샘플링 (허블 시퀀스) X
 	  - Kroupa IMF 적분으로 <m_IMF> 계산
 	  - 렌더링 예산에 맞게 N 클램프
 
-24. 별 위치 샘플링 (PDF 기반, 비균일)
+24. 별 위치 샘플링 (PDF 기반, 비균일) #
 	  - rejection sampling 또는 역CDF
 
 25. 회전 곡선 생성 #
@@ -141,9 +144,6 @@ _4.  은하 타입 샘플링 (허블 시퀀스) X
 29. 광도 / 유효온도 / 반지름 파생 #
 	  - MIST/BaSTI isochrone 근사 다항식
 	  - L(M, age), T_eff(M, age), R(M, age)
-	
-# stellar halo NONE!!
-# need star resampling(innerRadius)
 
 
 ━━━ PHASE 9: 성단 & 성간물질 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
