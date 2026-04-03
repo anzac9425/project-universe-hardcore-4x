@@ -1,11 +1,13 @@
 extends Node
 class_name MapGenerator
 
-static func generate(base_seed: int) -> GalaxyData:
+static func generate(base_seed: int, base_n_star: int) -> GalaxyData:
 	var galaxy = GalaxyData.new()
 
 	var galaxy_seed := C.hash_int(base_seed, C.HashPurpose.GALAXY)
 	galaxy.galaxy_seed = galaxy_seed
+	
+	galaxy.base_n_star = base_n_star
 
 	# [use] z_form -> age_gyr
 	var z_form := C.sample_z_form(galaxy_seed)
@@ -261,7 +263,8 @@ static func generate(base_seed: int) -> GalaxyData:
 		age_gyr,
 		feh,
 		halo_spin,
-		m_gas_msun
+		m_gas_msun,
+		base_n_star
 	)
 
 	var galaxy_field = GalaxyFieldData.new()
@@ -281,6 +284,7 @@ static func _log_galaxy(galaxy: GalaxyData) -> void:
 	if not OS.is_debug_build():
 		return
 	Log.info("=== GalaxyData (seed: %s) ===" % galaxy.galaxy_seed)
+	Log.info("  base_n_star: %s" % galaxy.base_n_star)
 	Log.info("  z_form: %s" % galaxy.z_form)
 	Log.info("  age_gyr: %s" % galaxy.age_gyr)
 	Log.info("  halo_spin: %s" % galaxy.halo_spin)
@@ -340,3 +344,4 @@ static func _log_galaxy(galaxy: GalaxyData) -> void:
 	Log.info("  spiral: %s" % galaxy.galaxy_field.spiral)
 	Log.info("  n_star: %s" % galaxy.galaxy_field.n_star)
 	Log.info("  stable_inner_radius_kpc: %s" % galaxy.galaxy_field.stable_inner_radius_kpc)
+	#Log.info("  star_population: %s" % galaxy.galaxy_field.star_population)

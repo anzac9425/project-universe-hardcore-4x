@@ -10,8 +10,8 @@ class_name GalaxyField
 # z 좌표는 후속 단계에서 부여
 # ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 
-const N_STAR_MAX: int = 200
-const N_STAR_MIN: int = 2_000
+const N_STAR_MAX: int = 1_000_000
+const N_STAR_MIN: int = 0
 
 const R_DISK_CUTOFF_RD: float = 6.0
 const R_BULGE_CUTOFF_RE: float = 8.0
@@ -215,10 +215,15 @@ static func arm_density_factor(
 # STEP 23 — 별 총 개수 결정
 # ───────────────────────────────────────────────────────────────────────────
 
-static func compute_n_star(m_star_msun: float, n_max: int = N_STAR_MAX) -> int:
+static func compute_n_star(m_star_msun: float, base_n_star_: int) -> int:
 	var m_mean: float = max(KROUPA_MEAN_MASS_MSUN, 1e-6)
-	var n_phys := int(round(max(m_star_msun, 0.0) / m_mean))
-	return clampi(n_phys, N_STAR_MIN, n_max)
+	var n_phys: float = max(m_star_msun, 0.0) / m_mean
+	
+	var n_phys_ref: float = max(C.M_STAR_MSUN_MILKYWAY, 1e-6) / m_mean
+	var scale: float = n_phys / n_phys_ref
+	
+	var n_scaled_phys: int = int(round(base_n_star_ * scale))
+	return clampi(n_scaled_phys, N_STAR_MIN, N_STAR_MAX)
 
 
 # ───────────────────────────────────────────────────────────────────────────
@@ -606,14 +611,15 @@ static func build_galaxy_field(
 	age_gyr: float,
 	feh: float,
 	halo_spin: float,
-	m_gas_msun: float
+	m_gas_msun: float,
+	base_n_star_: int
 ) -> Dictionary:
 	var spiral := sample_spiral_params(
 		galaxy_seed, galaxy_type, f_gas,
 		C.logx(max(M_star_msun, 1e-6)), halo_spin
 	)
 
-	var n_star := compute_n_star(M_star_msun)
+	var n_star := compute_n_star(M_star_msun, base_n_star_)
 
 	var sigma0 := 0.0
 	if Rd_kpc > 0.0:

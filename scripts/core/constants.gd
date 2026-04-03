@@ -13,6 +13,7 @@ const SCENE_SETTINGS_PATH = "res://scenes/Settings.tscn"
 const EARTH_MASS: float = 5.97219e24
 const SOLAR_MASS: float = 1.98847e30
 const MILKYWAY_MASS: float = 1.15e12 * SOLAR_MASS
+const M_STAR_MSUN_MILKYWAY: float = 6.0e10
 
 # m
 const AU: float = 149_597_870_700
@@ -156,32 +157,41 @@ static func sample_halo_spin(galaxy_seed: int) -> float:
 	var z_spin := random_normal(galaxy_seed, HashPurpose.GALAXY_HALO_SPIN, 0)
 	return clamp(exp(log(0.035) + 0.55 * z_spin), 0.005, 0.15)
 
-# f_baryon
 static func get_Z(u1: float, u2: float) -> float: # 표준정규분포시드
 	u1 = max(u1, 1e-9)
 	return sqrt(-2.0 * log(u1)) * cos(2.0 * PI * u2)		
 
 
+static var BARYON_FIT := {
+	"f_cosmic": 0.157,        # 가능하면 외부 cosmology config로 교체
+	"log10_m50_msun": 11.8,   # 관측 fit 값으로 교체
+	"alpha": 1.7,             # 관측 fit 값으로 교체
+	"sigma_logit": 0.18       # 관측 scatter로 교체
+}
+
 static func _f_baryon_zero(mass: float) -> float:
-	const M_0: float = 12.0 # ~12
-	const SIGMA_B: float = 1.0 # ~1.0-1.5
-	const F_COSMIC: float = 0.157 # ~~0.157
-	
-	var diff = log_msun(mass) - M_0
-	var exponent = -(diff * diff) / (2.0 * SIGMA_B * SIGMA_B)
-	return F_COSMIC * exp(exponent)
+	var logm := log_msun(mass)
+	var f_cosmic := float(BARYON_FIT["f_cosmic"])
+	var log10_m50 := float(BARYON_FIT["log10_m50_msun"])
+	var alpha := float(BARYON_FIT["alpha"])
+
+	# 0..f_cosmic, monotonic increase, high-mass saturation
+	var t := exp(alpha * (logm - log10_m50))
+	return f_cosmic * (t / (1.0 + t))
 
 
 static func f_baryon(galaxy_seed: int, galaxy_mass: float) -> float:
-	const SIGMA_B_SC: float = 0.1
-	
-	var u1 = hash_float(galaxy_seed, HashPurpose.GALAXY_BARYON, 0)
-	var u2 = hash_float(galaxy_seed, HashPurpose.GALAXY_BARYON, 1)
-	var Z_b = get_Z(u1, u2)
-	
-	var x = logit(_f_baryon_zero(galaxy_mass)) + SIGMA_B_SC * Z_b
-	
-	return sigmoid(x)
+	var f_cosmic := float(BARYON_FIT["f_cosmic"])
+	var sigma := float(BARYON_FIT["sigma_logit"])
+
+	var u1 := hash_float(galaxy_seed, HashPurpose.GALAXY_BARYON, 0)
+	var u2 := hash_float(galaxy_seed, HashPurpose.GALAXY_BARYON, 1)
+	var z_b := get_Z(u1, u2)
+
+	var f0: float = clamp(_f_baryon_zero(galaxy_mass) / f_cosmic, 1e-6, 1.0 - 1e-6)
+	var f := f_cosmic * sigmoid(logit(f0) + sigma * z_b)
+
+	return f
 	
 # f_gas
 	

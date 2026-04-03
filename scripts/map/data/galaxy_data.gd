@@ -13,6 +13,7 @@ enum GalaxyType {
 var type: int
 
 var galaxy_seed: int
+var base_n_star: int
 
 var z_form: float            # [use] formation redshift
 var age_gyr: float           # [use] z_form -> lookback age

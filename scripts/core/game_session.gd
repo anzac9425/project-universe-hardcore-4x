@@ -16,7 +16,8 @@ func start_new_game(new_config: GameConfig):
 
 	config = new_config
 	galaxy = MapGenerator.generate(
-		config.base_seed
+		config.base_seed,
+		config.base_n_star
 	)
 	
 	game_started = true

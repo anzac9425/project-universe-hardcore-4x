@@ -1,22 +1,13 @@
 extends Node2D
 
-@export var base_seed: int = -17542910
-# -1754291: FRI, 1941221121: quasar_1
-@export var galaxy_type: int = 0
-
-@export var system_count: int = 0
-@export var min_system_distance: float = 5.0
-@export var galaxy_radius: float = 1000.0
+@export var base_seed: int = 999
+@export var base_n_star: int = 100_000
 
 func _on_start_button_pressed() -> void:
 	var config = GameConfig.new()
 	
 	config.base_seed = base_seed
-	
-	config.system_count = system_count
-	config.min_system_distance = min_system_distance
-	config.galaxy_radius = galaxy_radius
-	config.Rd = galaxy_radius * C.RD_MTP
+	config.base_n_star = base_n_star
 	
 	GameSession.start_new_game(config)
 	SceneManager.change_scene_with_loading(C.SCENE_INGAME_PATH)
