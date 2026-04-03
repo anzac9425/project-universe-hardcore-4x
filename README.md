@@ -8,6 +8,7 @@
 ```bash
 cd %path%
 git pull --rebase
-git add . && git commit -m "work"
+git add .
+git commit -m ""
 git push
 ```
