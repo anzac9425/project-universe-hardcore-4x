@@ -89,7 +89,13 @@ static func sample_spiral_params(
 		GalaxyData.GalaxyType.Sc:
 			arm_count = 4 if u_arm < 0.70 else 2
 		GalaxyData.GalaxyType.Irr:
-			arm_count = 0
+			return {
+			"has_arms": false,
+			"arm_count": 0,
+			"pitch_deg": 0.0,
+			"contrast": 0.0,
+			"phases": []
+			}
 		_:
 			arm_count = 2
 
