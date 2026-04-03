@@ -64,8 +64,6 @@ func _build_star_field() -> void:
 	multimesh.use_custom_data = true
 	multimesh.instance_count = n_star
 
-	var quad := QuadMesh.new()
-	quad.size = Vector2.ONE
 
 	for i in range(n_star):
 		var pos: Vector2 = positions[i] * STAR_MAP_SCALE
@@ -98,9 +96,15 @@ func _build_star_field() -> void:
 
 	_star_field = MultiMeshInstance2D.new()
 	_star_field.multimesh = multimesh
-	_star_field.mesh = quad
+	_star_field.texture = _build_star_texture()
 	_star_field.material = _build_star_shader_material()
 	add_child(_star_field)
+
+
+func _build_star_texture() -> Texture2D:
+	var image := Image.create(2, 2, false, Image.FORMAT_RGBA8)
+	image.fill(Color(1.0, 1.0, 1.0, 1.0))
+	return ImageTexture.create_from_image(image)
 
 
 func _build_star_shader_material() -> ShaderMaterial:
