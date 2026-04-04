@@ -964,6 +964,157 @@ static func sample_accretion_disk_from_galaxy(
 		"p_coherent": p_coherent,
 		"r_out_rg": r_out_rg
 	}
+	
+# ─────────────────────────────────────────────────────────────────
+# SMBH 시각화 파라미터  (렌더러에 넘길 물리 기반 출력값)
+# ─────────────────────────────────────────────────────────────────
+
+## 흑체 온도 → 근사 sRGB 색상  (Tanner Helland 2012, 자연로그 버전)
+## 유효 범위: 1 000 K ~ 40 000 K
+static func blackbody_color(T_K: float) -> Color:
+	var t: float = clamp(T_K / 100.0, 10.0, 400.0)
+	var r: float = 1.0 if t <= 66.0 \
+		else clamp(329.698727446 * pow(t - 60.0, -0.1332047592) / 255.0, 0.0, 1.0)
+	var g: float = clamp((99.4708025861 * log(t) - 161.1195681661) / 255.0, 0.0, 1.0) if t <= 66.0 \
+		else clamp(288.1221695283 * pow(t - 60.0, -0.0755148492) / 255.0, 0.0, 1.0)
+	var b: float
+	if   t >= 66.0: b = 1.0
+	elif t <= 19.0: b = 0.0
+	else:           b = clamp((138.5177312231 * log(t - 10.0) - 305.0447927307) / 255.0, 0.0, 1.0)
+	return Color(r, g, b)
+
+
+## SMBH 물리 기반 시각화 파라미터
+## 모든 출력 길이는 m (렌더러에서 단위 변환)
+static func compute_smbh_visual_params(
+	m_bh_kg:          float,
+	spin_a:           float,
+	log10_lambda:     float,   # Eddington 비율 log10
+	eta_rad:          float,   # 복사 효율
+	has_disk:         bool,
+	r_out_rg:         float,   # 강착원반 외부 반경 [r_g 단위]
+	has_jet:          bool,
+	log10_p_jet_w:    float,
+	jet_half_angle_deg: float,
+	is_obscured:      bool
+) -> Dictionary:
+	if m_bh_kg <= 0.0 or not is_finite(m_bh_kg):
+		return {"r_g_m": 0.0, "render_thin_disk": false, "render_adaf": false,
+				"render_torus": false, "render_jet": false}
+				
+	const G_SI   : float = 6.67430e-11          # m³ kg⁻¹ s⁻²
+	const C_SQ   : float = 8.987551787e16       # c² [m²/s²]
+	const PC_M   : float = 3.085677581491367e16 # 1 pc [m]
+	const KPC_M  : float = 3.085677581491367e19 # 1 kpc [m]
+
+	# ── 기본 블랙홀 스케일 ───────────────────────────────────────────
+	var r_g_m        := G_SI * m_bh_kg / C_SQ           # 중력 반경 [m]
+	var r_s_m        := 2.0 * r_g_m                      # Schwarzschild 반경 [m]
+	var r_isco_rg    := _isco_radius_rg(spin_a)           # ISCO [r_g]
+	var r_isco_m     := r_isco_rg * r_g_m
+	var r_out_m      := r_out_rg  * r_g_m
+	var r_photon_m   := 3.0 * r_g_m                      # 광자구 반경 (Schwarzschild 근사)
+	var m_bh_msun    := m_bh_kg / SOLAR_MASS
+
+	# ── 박막 원반: Shakura-Sunyaev 온도 프로파일 ───────────────────
+	# Frank, King & Raine (2002) §5.6
+	# T_peak ≈ 6.3e5 K · (M/10⁸M☉)^{-1/4} · (λ·0.1/η)^{1/4}
+	var T_in_K  := 0.0
+	var T_out_K := 0.0
+	var disk_color_in  := Color.WHITE
+	var disk_color_out := Color.WHITE
+
+	if has_disk and is_finite(log10_lambda) and eta_rad > 0.0:
+		var lambda := pow(10.0, max(log10_lambda, -8.0))
+		var lambda_normed: float = max(lambda * 0.1 / eta_rad, 1e-12)
+		T_in_K = 6.3e5 \
+			* pow(max(m_bh_msun / 1.0e8, 1e-12), -0.25) \
+			* pow(lambda_normed, 0.25)
+		T_in_K = clamp(T_in_K, 1.0e3, 1.0e8)
+
+		# 외곽 온도: T(r) ∝ r^{-3/4}  (ISCO 대비)
+		var f_r: float = max(r_isco_rg / max(r_out_rg, r_isco_rg + 1.0), 1e-4)
+		T_out_K = clamp(T_in_K * pow(f_r, 0.75), 100.0, T_in_K)
+
+		disk_color_in  = blackbody_color(T_in_K)
+		disk_color_out = blackbody_color(T_out_K)
+
+	elif not has_disk:
+		# ADAF/RIAF: 비복사 모드, 전파·X선 방출 (시각적으로 희미하고 파란 코어)
+		T_in_K         = 1.0e9   # 바이리얼 온도 프록시
+		T_out_K        = 1.0e7
+		disk_color_in  = Color(0.7, 0.85, 1.0)  # 희미한 청백
+		disk_color_out = Color(0.4, 0.5,  0.8)
+
+	# ── 먼지 승화 반경 (토러스 내경) ──────────────────────────────
+	# Barvainis (1987): r_sub [pc] ≈ 1.3 (L/10^46 erg/s)^{0.5} (T_sub/1500K)^{-2.8}
+	# 간략화(T_sub=1500K): r_sub ≈ 0.4 (L_45)^{0.5}  pc
+	var r_torus_in_pc  := 0.0
+	var r_torus_out_pc := 0.0
+
+	if has_disk and is_finite(log10_lambda):
+		var log10_l_edd  := 4.517 + logx(max(m_bh_msun, 1e-6))
+		var log10_l_bol  := log10_l_edd + log10_lambda
+		# L_sun → erg/s 변환: 1 L_sun = 3.828e33 erg/s
+		var log10_l_ergs := log10_l_bol + logx(3.828e33)
+		var l45          := pow(10.0, log10_l_ergs - 45.0)
+		r_torus_in_pc = clamp(0.4 * sqrt(max(l45, 1e-15)), 1e-3, 1.0e3)
+
+		# 외곽: covering factor가 높을수록 넓은 토러스 (Ramos Almeida & Ricci 2017)
+		var f_cover: float = clamp(0.1 + 0.5 * pow(10.0, clamp(-log10_lambda - 1.5, 0.0, 3.0) * 0.5), 0.1, 1.0)
+		r_torus_out_pc = r_torus_in_pc * lerp(4.0, 20.0, f_cover)
+
+	# ── 제트 스케일 ──────────────────────────────────────────────
+	# 관측 기반 프록시: FRI ~10-100 kpc, FRII ~100 kpc-1 Mpc
+	# log10(L_jet/kpc) ≈ 0.65 · (log10(P_jet/W) - 35) − 0.5
+	var jet_length_kpc   := 0.0
+	var jet_opening_rad  := 0.0
+
+	if has_jet and is_finite(log10_p_jet_w):
+		var log10_len := 0.65 * (log10_p_jet_w - 35.0) - 0.5
+		jet_length_kpc  = clamp(pow(10.0, log10_len), 0.005, 5000.0)
+		jet_opening_rad = deg_to_rad(clamp(jet_half_angle_deg, 0.5, 20.0))
+
+	# ── 볼로메트릭 광도 ──────────────────────────────────────────
+	var log10_l_bol_lsun := NAN
+	if is_finite(log10_lambda):
+		log10_l_bol_lsun = 4.517 + logx(max(m_bh_msun, 1e-6)) + log10_lambda
+
+	return {
+		# 공간 스케일 [m]
+		"r_g_m":              r_g_m,
+		"r_s_m":              r_s_m,
+		"r_isco_rg":          r_isco_rg,
+		"r_isco_m":           r_isco_m,
+		"r_out_m":            r_out_m,
+		"r_photon_m":         r_photon_m,
+
+		# 온도 & 색상
+		"T_in_K":             T_in_K,
+		"T_out_K":            T_out_K,
+		"disk_color_in":      disk_color_in,
+		"disk_color_out":     disk_color_out,
+
+		# 토러스 [pc]
+		"r_torus_in_pc":      r_torus_in_pc,
+		"r_torus_out_pc":     r_torus_out_pc,
+		"r_torus_in_m":       r_torus_in_pc  * PC_M,
+		"r_torus_out_m":      r_torus_out_pc * PC_M,
+
+		# 제트
+		"jet_length_kpc":     jet_length_kpc,
+		"jet_length_m":       jet_length_kpc * KPC_M,
+		"jet_opening_rad":    jet_opening_rad,
+
+		# 광도
+		"log10_l_bol_lsun":   log10_l_bol_lsun,
+
+		# 렌더러 분기 플래그
+		"render_thin_disk":   has_disk,
+		"render_adaf":        not has_disk,
+		"render_torus":       is_obscured and has_disk,
+		"render_jet":         has_jet,
+	}
 
 # ─────────────────────────────────────────────────────────────────
 # AGN PROPERTIES  (Step 13)

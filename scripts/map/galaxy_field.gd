@@ -246,56 +246,84 @@ static func _sample_R_disk(seed_: int, star_idx: int, Rd_kpc: float, R_max: floa
 			return R
 	return R_max * 0.95  # fallback (실질적으로 거의 도달 안 함)
 
-static func _bulge_target_pdf(R_kpc: float, r_eff_kpc: float, n: float) -> float:
-	var R: float = max(R_kpc, 1e-9)
-	var bn := _bn(n)
-	return R * exp(-bn * (pow(R / max(r_eff_kpc, 1e-6), 1.0 / n) - 1.0))
+# ── Sérsic 샘플링 사전계산 (은하당 1회) ─────────────────────────────────
+static func _precompute_sersic_proposal(r_eff_kpc: float, n: float) -> Dictionary:
+	var bn   := _bn(n)
+	var R_max := r_eff_kpc * R_BULGE_CUTOFF_RE
 
-static func _bulge_proposal_pdf(R_kpc: float, R_peak: float) -> float:
-	if R_kpc <= 0.0 or R_peak <= 0.0:
-		return 0.0
-	return (R_kpc / (R_peak * R_peak)) * exp(-R_kpc / R_peak)
+	# 투영 PDF p(R) ∝ R·Σ(R)의 모드
+	var R_mode: float = max(r_eff_kpc * pow(max(n / max(bn, 1e-3), 1e-9), n), 1e-5)
 
-static func _bulge_rejection_bound(r_eff_kpc: float, n: float) -> float:
-	var bn := _bn(n)
-	var R_peak: float = max(r_eff_kpc * pow(n / bn, n), 1e-3)
-	var R_max: float = max(r_eff_kpc * R_BULGE_CUTOFF_RE, R_peak * 4.0)
-	var best := 1e-30
+	# 3개 Gamma(2, scale) 혼합: 핵·본체·외곽
+	var s0: float = max(R_mode * 0.8, r_eff_kpc * 1e-3)
+	var s1 := r_eff_kpc * 0.30
+	var s2 := r_eff_kpc * 0.90
+	const W0 := 0.25; const W1 := 0.45; const W2 := 0.30
 
-	# coarse scan으로 sup(p/q) 근사
-	for i in range(128):
-		var t := float(i) / 127.0
-		var R: float = max(1e-4, R_max * t)
-		var p := _bulge_target_pdf(R, r_eff_kpc, n)
-		var q: float = max(_bulge_proposal_pdf(R, R_peak), 1e-30)
-		best = max(best, p / q)
+	# 로그 등간격 512점 스캔 → M = sup(target / proposal) 계산
+	var log_R_min := log(max(R_mode * 0.05, 1e-5))
+	var log_R_max := log(R_max)
+	var M := 1e-30
 
-	return best * 1.05
+	for i in range(512):
+		var R := exp(lerp(log_R_min, log_R_max, (float(i) + 0.5) / 512.0))
+		var tgt := R * exp(-bn * (pow(R / r_eff_kpc, 1.0 / n) - 1.0))
+		var q0  := (R / (s0 * s0)) * exp(-R / s0)
+		var q1  := (R / (s1 * s1)) * exp(-R / s1)
+		var q2  := (R / (s2 * s2)) * exp(-R / s2)
+		var q   := W0 * q0 + W1 * q1 + W2 * q2
+		if q > 1e-30:
+			M = max(M, tgt / q)
 
-static func _sample_R_bulge(seed_: int, star_idx: int, r_eff_kpc: float, n: float) -> float:
-	var bn := _bn(n)
-	var R_peak: float = max(r_eff_kpc * pow(n / bn, n), 1e-3)
-	var R_max: float = max(r_eff_kpc * R_BULGE_CUTOFF_RE, R_peak * 4.0)
-	var M := _bulge_rejection_bound(r_eff_kpc, n)
+	return {
+		"bn": bn, "n": n, "r_eff": r_eff_kpc, "R_max": R_max,
+		"s0": s0, "s1": s1, "s2": s2,
+		"w0": W0, "w1": W1, "w2": W2,
+		"M": M * 1.05   # 5% 마진
+	}
 
-	for attempt in range(BULGE_MAX_ATTEMPTS):
-		var base := star_idx * BULGE_MAX_ATTEMPTS * 2 + attempt * 2
-		var u1: float = max(_u(seed_, C.HashPurpose.GALAXY_STAR_R_BULGE, base), 1e-12)
-		var u2: float = max(_u(seed_, C.HashPurpose.GALAXY_STAR_R_BULGE, base + 1), 1e-12)
 
-		# Gamma(2, R_peak)
-		var R_prop := -R_peak * (log(u1) + log(u2))
+# ── 벌지 반경 샘플링 (사전계산된 제안 분포 사용) ───────────────────────────
+static func _sample_R_bulge(seed_: int, star_idx: int, prop: Dictionary) -> float:
+	var bn    := float(prop["bn"])
+	var n     := float(prop["n"])
+	var re    := float(prop["r_eff"])
+	var R_max := float(prop["R_max"])
+	var s0    := float(prop["s0"]); var s1 := float(prop["s1"]); var s2 := float(prop["s2"])
+	var w0    := float(prop["w0"]); var w1 := float(prop["w1"]); var w2 := float(prop["w2"])
+	var M     := float(prop["M"])
+
+	const MAX_ATT := 512
+	for attempt in range(MAX_ATT):
+		var b  := star_idx * MAX_ATT * 4 + attempt * 4
+
+		# 혼합 성분 선택
+		var uc := _u(seed_, C.HashPurpose.GALAXY_STAR_R_BULGE, b)
+		var scale := s2
+		if   uc < w0:       scale = s0
+		elif uc < w0 + w1:  scale = s1
+
+		# Gamma(2, scale) 샘플
+		var u1: float = max(_u(seed_, C.HashPurpose.GALAXY_STAR_R_BULGE, b + 1), 1e-12)
+		var u2: float = max(_u(seed_, C.HashPurpose.GALAXY_STAR_R_BULGE, b + 2), 1e-12)
+		var R_prop := -scale * (log(u1) + log(u2))
 		if R_prop <= 0.0 or R_prop > R_max:
 			continue
 
-		var p := _bulge_target_pdf(R_prop, r_eff_kpc, n)
-		var q: float = max(_bulge_proposal_pdf(R_prop, R_peak), 1e-30)
-		var u_acc := _u(seed_, C.HashPurpose.GALAXY_STAR_R_BULGE, base + 1_000_000)
+		# Rejection
+		var tgt := R_prop * exp(-bn * (pow(R_prop / re, 1.0 / n) - 1.0))
+		var q0  := (R_prop / (s0 * s0)) * exp(-R_prop / s0)
+		var q1  := (R_prop / (s1 * s1)) * exp(-R_prop / s1)
+		var q2  := (R_prop / (s2 * s2)) * exp(-R_prop / s2)
+		var q   := w0 * q0 + w1 * q1 + w2 * q2
+		var ua  := _u(seed_, C.HashPurpose.GALAXY_STAR_R_BULGE, b + 3)
 
-		if u_acc <= p / (M * q):
+		if q > 1e-30 and ua <= tgt / (M * q):
 			return R_prop
 
-	return R_peak
+	# 폴백: 단일점 수렴 대신 로그 균일 분포 (0.01·re ~ 1.5·re)
+	var u_fb := _u(seed_, C.HashPurpose.GALAXY_STAR_R_BULGE, star_idx + 1_200_000_000)
+	return re * exp(log(0.01) + (log(1.5) - log(0.01)) * u_fb)
 
 
 static func _sample_phi(
@@ -339,58 +367,41 @@ static func sample_star_positions_kpc(
 	n_star: int,
 	f_disk: float,
 	f_bulge: float,
-	f_star_halo: float,          # 추가
+	f_star_halo: float,
 	Rd_kpc: float,
 	r_eff_kpc: float,
 	n_sersic: float,
 	spiral: Dictionary,
-	stable_inner_radius_kpc_: float = 0.0,
-	r_halo_inner_kpc: float = 1.0,  # 추가
-	r_halo_outer_kpc: float = 50.0  # 추가
+	# stable_inner_radius_kpc_ 파라미터 제거
+	r_halo_inner_kpc: float = 1.0,
+	r_halo_outer_kpc: float = 50.0
 ) -> PackedVector2Array:
 	var out := PackedVector2Array()
 	out.resize(n_star)
 
 	var f_total: float = max(f_disk + f_bulge + f_star_halo, 1e-6)
-	var p_disk  := f_disk       / f_total
-	var p_bulge := f_bulge      / f_total
-	# p_halo  = 1.0 - p_disk - p_bulge  (나머지)
+	var p_disk := f_disk      / f_total
+	var p_bulge := f_bulge     / f_total
 
 	var R_disk_max: float = max(Rd_kpc * R_DISK_CUTOFF_RD, 0.01)
-	var R_stable:   float = max(stable_inner_radius_kpc_,   0.0)
+
+	# Sérsic 제안 분포 사전계산 (은하당 1회 ~ O(512), 무시 가능)
+	var sersic_prop := _precompute_sersic_proposal(r_eff_kpc, n_sersic)
 
 	for i in range(n_star):
 		var u_comp := _u(galaxy_seed, C.HashPurpose.GALAXY_STAR_COMPONENT, i)
-		var R:   float
-		var phi: float
+		var R: float; var phi: float
 
 		if u_comp < p_disk:
-			# ── Disk: 불안정 영역은 resampling ──────────────────────────
-			var accepted := false
-			for attempt in range(MAX_DISK_RESAMPLE):
-				# attempt마다 독립된 hash index 사용 (충돌 회피)
-				var idx := i + (attempt + 1) * 100_000_000
-				R   = _sample_R_disk(galaxy_seed, idx, Rd_kpc, R_disk_max)
-				phi = _sample_phi(galaxy_seed, idx, R, Rd_kpc, spiral)
-				if R_stable <= 0.0 or R >= R_stable:
-					accepted = true
-					break
-
-			# MAX_DISK_RESAMPLE 시도 후에도 실패 시 → stable 경계 바로 바깥 배치
-			if not accepted:
-				R   = R_stable * 1.01
-				phi = _u(galaxy_seed, C.HashPurpose.GALAXY_STAR_PHI_UNIFORM,
-					i + 40_000_000) * TAU
+			R = _sample_R_disk(galaxy_seed, i, Rd_kpc, R_disk_max)
+			phi = _sample_phi(galaxy_seed, i, R, Rd_kpc, spiral)
 
 		elif u_comp < p_disk + p_bulge:
-			# ── Bulge ────────────────────────────────────────────────────
-			R   = _sample_R_bulge(galaxy_seed, i, r_eff_kpc, n_sersic)
-			phi = _u(galaxy_seed, C.HashPurpose.GALAXY_STAR_PHI_UNIFORM,
-				i + 10_000_000) * TAU
+			R = _sample_R_bulge(galaxy_seed, i, sersic_prop)
+			phi = _u(galaxy_seed, C.HashPurpose.GALAXY_STAR_PHI_UNIFORM, i + 10_000_000) * TAU
 
 		else:
-			# ── Stellar halo: log-uniform R, 균일 phi ────────────────────
-			R   = _sample_R_halo(galaxy_seed, i, r_halo_inner_kpc, r_halo_outer_kpc)
+			R = _sample_R_halo(galaxy_seed, i, r_halo_inner_kpc, r_halo_outer_kpc)
 			phi = _u(galaxy_seed, C.HashPurpose.GALAXY_STAR_PHI_HALO, i) * TAU
 
 		out[i] = Vector2(R * cos(phi), R * sin(phi))
@@ -557,48 +568,21 @@ static func minimum_neighbor_distance_kpc(R_kpc: float, m_star_msun: float, V_c_
 static func estimate_sigma_R_kms(v_circ_kms: float) -> float:
 	return clamp(0.15 * max(v_circ_kms, 0.0), 8.0, 60.0)
 
-
-static func apply_stability_filter(
-	positions_kpc: PackedVector2Array,
-	galaxy_seed: int,
-	stable_inner_radius_kpc_: float,
-	Rd_kpc: float,          # 추가
-	spiral: Dictionary      # 추가
-) -> PackedVector2Array:
-	if stable_inner_radius_kpc_ <= 0.0:
-		return positions_kpc
-
-	var R_disk_max: float = max(Rd_kpc * R_DISK_CUTOFF_RD, 0.01)
-	var out := positions_kpc.duplicate()
-
-	for i in range(out.size()):
-		var p := out[i]
-		if p.length() >= stable_inner_radius_kpc_:
-			continue
-
-		# ── Resampling ──────────────────────────────────────────────────
-		var phi_orig := atan2(p.y, p.x)
-		var accepted := false
-
-		for attempt in range(MAX_DISK_RESAMPLE):
-			var idx := i + (attempt + 1) * 200_000_000
-			var R   := _sample_R_disk(galaxy_seed, idx, Rd_kpc, R_disk_max)
-			var phi := _sample_phi(galaxy_seed, idx, R, Rd_kpc, spiral)
-			if R >= stable_inner_radius_kpc_:
-				out[i]   = Vector2(R * cos(phi), R * sin(phi))
-				accepted = true
-				break
-
-		if not accepted:
-			var R := stable_inner_radius_kpc_ * 1.01
-			out[i] = Vector2(R * cos(phi_orig), R * sin(phi_orig))
-
-	return out
-
-
 # ───────────────────────────────────────────────────────────────────────────
 # 최종 묶음: 한 번에 필요한 값 만들기
 # ───────────────────────────────────────────────────────────────────────────
+
+static func _sample_R_halo(
+	seed_: int,
+	star_idx: int,
+	r_inner_kpc: float,
+	r_outer_kpc: float
+) -> float:
+	# log-uniform → 투영 표면밀도 ∝ 1/R (stellar halo 근사)
+	var u := _u(seed_, C.HashPurpose.GALAXY_STAR_R_HALO, star_idx)
+	var r_in: float = max(r_inner_kpc,  1e-3)
+	var r_out: float = max(r_outer_kpc,  r_in * 2.0)
+	return r_in * pow(r_out / r_in, u)
 
 static func build_galaxy_field(
 	galaxy_seed: int,
@@ -646,19 +630,22 @@ static func build_galaxy_field(
 	r_halo_out      = max(r_halo_out, r_eff_kpc * 4.0)  # 최소 보장
 	var r_halo_in: float = max(r_eff_kpc * 1.5, 0.5)
 
+	# 기존 _bulge_rejection_bound 및 apply_stability_filter 호출 제거
+	# stable_inner_radius는 분석/디버그용으로만 유지
+
 	var positions := sample_star_positions_kpc(
 		galaxy_seed,
 		n_star,
 		f_disk,
 		f_bulge,
-		f_star_halo,    # 추가
+		f_star_halo,
 		Rd_kpc,
 		r_eff_kpc,
 		n_sersic,
 		spiral,
-		stable_R,
-		r_halo_in,      # 추가
-		r_halo_out      # 추가
+		# stable_inner_radius_kpc 파라미터 없음
+		r_halo_in,
+		r_halo_out
 	)
 
 	var star_population := StarPhysics.build_star_population(
@@ -675,15 +662,3 @@ static func build_galaxy_field(
 		"positions_kpc":            positions,
 		"star_population":          star_population
 	}
-	
-static func _sample_R_halo(
-	seed_: int,
-	star_idx: int,
-	r_inner_kpc: float,
-	r_outer_kpc: float
-) -> float:
-	# log-uniform → 투영 표면밀도 ∝ 1/R (stellar halo 근사)
-	var u := _u(seed_, C.HashPurpose.GALAXY_STAR_R_HALO, star_idx)
-	var r_in: float = max(r_inner_kpc,  1e-3)
-	var r_out: float = max(r_outer_kpc,  r_in * 2.0)
-	return r_in * pow(r_out / r_in, u)
