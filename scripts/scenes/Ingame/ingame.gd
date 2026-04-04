@@ -1,6 +1,6 @@
 extends Node2D
 
-const SYSTEM_DOT_RADIUS := 1.0
+const SYSTEM_DOT_RADIUS := 0.0
 const GALAXY_CENTER_COLOR := Color("ffd166")
 const SYSTEM_COLOR := Color("74c0fc")
 
@@ -111,7 +111,6 @@ func _draw_smbh_overlay() -> void:
 	if ad.has_jet and is_finite(ad.log10_p_jet_w):
 		var jet_power_norm: float = clamp((ad.log10_p_jet_w - 30.0) / 18.0, 0.0, 1.0)
 		var jet_lorentz_norm: float = clamp((ad.jet_lorentz - 1.0) / 29.0, 0.0, 1.0) if is_finite(ad.jet_lorentz) else 0.0
-		var jet_half_angle_norm: float = clamp(ad.jet_half_angle_deg / 45.0, 0.0, 1.0) if is_finite(ad.jet_half_angle_deg) else 0.0
 
 		var jet_length: float = lerp(20.0, 380.0, jet_power_norm * 0.6 + jet_lorentz_norm * 0.4)
 		var jet_morph_hash := float(abs(ad.jet_morphology.hash()) % 1000) / 1000.0

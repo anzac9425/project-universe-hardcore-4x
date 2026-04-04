@@ -11,12 +11,8 @@ static func generate(base_seed: int, base_n_star: int) -> GalaxyData:
 
 	# [use] z_form -> age_gyr
 	var z_form := C.sample_z_form(galaxy_seed)
-	var z_obs: float = 0.0
-	var age_gyr: float = max(
-		C.lookback_time_gyr_from_z(z_form) - C.lookback_time_gyr_from_z(z_obs),
-		0.0
-	)
-	#age_gyr = 13.8
+	# lookback_time_gyr_from_z(0) ≡ 0 이므로 단순화
+	var age_gyr: float = C.lookback_time_gyr_from_z(z_form)
 	galaxy.z_form = z_form
 	galaxy.age_gyr = age_gyr
 
@@ -31,7 +27,7 @@ static func generate(base_seed: int, base_n_star: int) -> GalaxyData:
 	var m_vir := m_vir_msun * C.SOLAR_MASS
 	galaxy.m_vir = m_vir
 
-	var z := z_obs # [use] observation redshift in all downstream fits
+	var z := z_form
 
 	var f_baryon := C.f_baryon(galaxy_seed, m_vir)
 	galaxy.f_baryon = f_baryon
@@ -97,7 +93,9 @@ static func generate(base_seed: int, base_n_star: int) -> GalaxyData:
 	galaxy.halo = halo
 
 	# --- metallicity -> feh ---
-	var metallicity_dict := C.sample_metallicity_profile(galaxy_seed, C.logx(max(m_star / C.SOLAR_MASS, 1e-6)))
+	var metallicity_dict := C.sample_metallicity_profile(
+		galaxy_seed, C.logx(max(m_star / C.SOLAR_MASS, 1e-6)), z
+	)
 	if metallicity_dict.is_empty():
 		Log.error(ERR_CODE.MAP_GENERATION_FAILED, "MapGenerator.gd", "METALLICITY")
 		return null

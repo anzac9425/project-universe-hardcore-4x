@@ -1,7 +1,8 @@
 extends Node2D
 
-@export var base_seed: int = 11221
-@export var base_n_star: int = 100_000
+@export var base_seed: int = 112219
+# 1122: 61.63MW, 
+@export var base_n_star: int = 10_00
 
 func _on_start_button_pressed() -> void:
 	var config = GameConfig.new()

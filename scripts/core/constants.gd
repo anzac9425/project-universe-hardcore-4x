@@ -223,18 +223,13 @@ static func _mu_gas_log10(
 	z: float,
 	delta_physics: float
 ) -> float:
-	# Tuned to observed trends:
-	# - stronger gas fractions at lower M*
-	# - stronger gas fractions at higher z
-	# - mild boost from the existing "delta_physics" latent state
-	#
-	# This is a proxy relation, not a direct transcription of a single survey fit.
-
-	const LOG10_MU0: float = -0.40   # baseline at M*=10^10.5 Msun, z=0
-	const A_Z: float = 1.85          # between local xGASS and higher-z PHIBSS trends
-	const A_M: float = -0.55         # steeper than pure molecular scaling because this is cold gas
-	const A_DPHYS: float = 0.25      # mild structural / fueling boost
-
+	# 앵커 재교정: xGASS DR1 (Catinella+2018) z≈0, M★=10^10.5 Msun
+	# 관측 중앙값 f_gas ≈ 9–13% → μ = f/(1−f) ≈ 0.10–0.15 → log10(μ) ≈ −1.0 to −0.82
+	# 진화항 A_Z=1.85 유지 (xGASS→PHIBSS2 z~0→2 스케일링과 정합)
+	const LOG10_MU0: float = -0.95   # z=0 재교정 앵커
+	const A_Z: float     =  1.85
+	const A_M: float     = -0.55
+	const A_DPHYS: float =  0.25
 	return LOG10_MU0 \
 		+ A_Z * logx(1.0 + z) \
 		+ A_M * (logMstar - 10.5) \
@@ -1339,7 +1334,7 @@ static func sample_sfr_from_galaxy(
 	# SFMS anchor:
 	# log10(SFR/Msun yr^-1) = a * (logM* - 10.5) + b(z) + gas + latent physics + scatter
 	var a_mass: float = 0.72 - 0.10 * clamp(z, 0.0, 2.0)
-	var b_z := -0.12 + 1.10 * logx(1.0 + z)
+	var b_z := -0.12 + 1.50 * logx(1.0 + z)
 
 	var gas_term := 0.65 * tanh((f_gas_ - 0.25) / 0.15)
 	var phys_term := 0.18 * tanh(delta_physics / 0.8)
@@ -1372,27 +1367,58 @@ static func sample_sfr_from_galaxy(
 
 static func sample_metallicity_profile(
 	galaxy_seed: int,
-	log10_m_star_msun: float
+	log10_m_star_msun: float,
+	z: float = 0.0   # [추가] 형성 적색편이
 ) -> Dictionary:
 	if not is_finite(log10_m_star_msun):
 		Log.error(115, "res://scripts/core/constants.gd")
 		return {}
 
-	# 중심 금속도 (12 + log(O/H)) mass-metallicity relation
-	# local MZR around z~0, mildly saturating near ~9.1
-	var z_met_center := random_normal(galaxy_seed, HashPurpose.GALAXY_METALLICITY, 0)
-	var x := log10_m_star_msun - 10.0
-	var z0_center := 8.75 + 0.30 * x - 0.08 * x * x
-	var z_center: float = clamp(z0_center + 0.10 * z_met_center, 7.6, 9.4)
+	# ── MZR 앵커: 직접법(T_e) 교정 기준 ────────────────────────────────
+	# Andrews & Martini 2013, Curti+2020 (SDSS z≈0 direct-method stack)
+	# z=0 대표값: M★=10^10 Msun → 12+log(O/H) ≈ 8.50 (= 0.19 dex below solar)
+	#
+	# 다항식 피팅 (x = log10(M★/10^10)):
+	#   x=−2 (10^8 Msun) → 7.78   x=−1 → 8.18
+	#   x= 0 (10^10)     → 8.50   x=+1 → 8.74   x=+1.5 → 8.83
+	const Z0_Z0:   float = 8.50   # z=0 앵커 [dex]
+	const A_MASS:  float = 0.28   # 질량 기울기
+	const B_MASS:  float = -0.04  # 2차 포화항
+	const SIGMA:   float = 0.10   # 내인 산포 [dex]  (Tremonti+2004 σ≈0.10)
 
-	# gradient: -0.05 ~ -0.10 dex/kpc
+	# ── 적색편이 진화항 ──────────────────────────────────────────────────
+	# Zahid+2014, Maiolino+2008 종합 피팅:
+	# Δ(12+logO/H) ≈ −0.40 · log10(1+z)
+	#   z=0.5 → −0.07 dex,  z=1 → −0.12 dex,  z=2 → −0.19 dex,  z=3 → −0.24 dex
+	const A_Z: float = -0.40
+
+	var z_met_scatter := random_normal(galaxy_seed, HashPurpose.GALAXY_METALLICITY, 0)
+	var x := log10_m_star_msun - 10.0
+
+	var z_mean := Z0_Z0 \
+		+ A_MASS * x \
+		+ B_MASS * x * x \
+		+ A_Z * logx(1.0 + z)
+
+	var z_raw := z_mean + SIGMA * z_met_scatter
+
+	# ── Soft 경계: hard clamp 대신 tanh 압축 ────────────────────────────
+	# 물리 범위 [6.8, 8.90]; 중앙 부근은 항등 함수에 가깝고 꼬리만 부드럽게 제한
+	# (극빈금속 왜소은하 하한 / 초고질량 ETG 상한)
+	const Z_LO:   float = 6.80
+	const Z_HI:   float = 8.90
+	const Z_MID:  float = 0.5 * (Z_LO + Z_HI)   # 7.85
+	const Z_HALF: float = 0.5 * (Z_HI - Z_LO)   # 1.05
+	var z_center := Z_MID + Z_HALF * tanh((z_raw - Z_MID) / Z_HALF)
+
+	# gradient: Sánchez+2014 CALIFA 기반 −0.05 ~ −0.10 dex/kpc
 	var u_grad := hash_float(galaxy_seed, HashPurpose.GALAXY_METALLICITY, 2)
 	var grad_dex_per_kpc: float = lerp(-0.10, -0.05, u_grad)
 
 	return {
 		"z_center_12_log_oh": z_center,
 		"gradient_dex_per_kpc": grad_dex_per_kpc,
-		"scatter_dex": 0.10
+		"scatter_dex": SIGMA
 	}
 
 # ─────────────────────────────────────────────────────────────────────────────
