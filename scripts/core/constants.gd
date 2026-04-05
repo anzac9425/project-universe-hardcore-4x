@@ -740,6 +740,9 @@ static func sample_bulge_profile_si(
 		halo_soft_prior = 0.70 + 0.30 * sigmoid(4.0 * x_halo)
 		r_eff_kpc *= halo_soft_prior
 		log10_reff_kpc_sampled = logx(r_eff_kpc)
+		
+	r_eff_kpc = max(r_eff_kpc, 0.01)   # 물리 하한: 10 pc (왜소은하 벌지 수치 폭발 방지)
+	log10_reff_kpc_sampled = C.logx(r_eff_kpc)
 
 	return {
 		"n_sersic": n_sersic,

@@ -11,6 +11,7 @@ static func generate(base_seed: int, base_n_star: int) -> GalaxyData:
 
 	# [use] z_form -> age_gyr
 	var z_form := C.sample_z_form(galaxy_seed)
+	z_form = 0.5
 	# lookback_time_gyr_from_z(0) ≡ 0 이므로 단순화
 	var age_gyr: float = C.lookback_time_gyr_from_z(z_form)
 	galaxy.z_form = z_form
