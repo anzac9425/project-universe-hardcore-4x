@@ -274,6 +274,37 @@ static func generate(base_seed: int, base_n_star: int) -> GalaxyData:
 	galaxy_field.positions_kpc = galaxy_field_dict["positions_kpc"]
 	galaxy_field.star_population = galaxy_field_dict["star_population"] # [use] StarPhysics output
 	galaxy.galaxy_field = galaxy_field
+	
+	# --- Phase 9: 성단 / 가스 구름 (Steps 30–31) ---
+	var cluster_field_dict: Dictionary = ClusterPhysics.build_cluster_field(
+		galaxy_seed,
+		m_vir_msun,                           # = m_vir / C.SOLAR_MASS
+		m_star_msun,                          # = m_star / C.SOLAR_MASS
+		m_gas_msun,                           # = m_gas  / C.SOLAR_MASS
+		galaxy.sfr_msun_per_yr,
+		feh,
+		z,                                    # z_form
+		age_gyr,
+		galaxy_type,
+		disk_size.r_d_kpc,
+		halo.rvir_kpc,
+		galaxy_field.spiral
+	)
+	if cluster_field_dict.is_empty():
+		Log.error(ERR_CODE.MAP_GENERATION_FAILED, "MapGenerator.gd", "CLUSTER_FIELD")
+		return null
+ 
+	var cluster_field := ClusterFieldData.new()
+	cluster_field.ob_associations   = cluster_field_dict["ob_associations"]
+	cluster_field.globular_clusters = cluster_field_dict["globular_clusters"]
+	cluster_field.molecular_clouds  = cluster_field_dict["molecular_clouds"]
+	cluster_field.turbulence_field  = cluster_field_dict["turbulence_field"]
+	cluster_field.n_ob              = cluster_field_dict["n_ob"]
+	cluster_field.n_gc              = cluster_field_dict["n_gc"]
+	cluster_field.n_gmc             = cluster_field_dict["n_gmc"]
+	cluster_field.f_mol             = cluster_field_dict["f_mol"]
+	cluster_field.m_h2_msun         = cluster_field_dict["m_h2_msun"]
+	galaxy.cluster_field = cluster_field
 
 	_log_galaxy(galaxy)
 	return galaxy
@@ -343,3 +374,9 @@ static func _log_galaxy(galaxy: GalaxyData) -> void:
 	Log.info("  n_star: %s" % galaxy.galaxy_field.n_star)
 	Log.info("  stable_inner_radius_kpc: %s" % galaxy.galaxy_field.stable_inner_radius_kpc)
 	#Log.info("  star_population: %s" % galaxy.galaxy_field.star_population)
+	Log.info("  --- cluster field ---")
+	Log.info("  n_ob:    %s" % galaxy.cluster_field.n_ob)
+	Log.info("  n_gc:    %s" % galaxy.cluster_field.n_gc)
+	Log.info("  n_gmc:   %s" % galaxy.cluster_field.n_gmc)
+	Log.info("  f_mol:   %s" % galaxy.cluster_field.f_mol)
+	Log.info("  m_h2:    %s Msun" % galaxy.cluster_field.m_h2_msun)

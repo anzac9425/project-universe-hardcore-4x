@@ -34,6 +34,7 @@ var disk_thickness: DiskThickness
 var bulge_profile: BulgeProfile
 var accretion_disk: AccretionDiskData
 var galaxy_field: GalaxyFieldData
+var cluster_field: ClusterFieldData
 
 var sfr_msun_per_yr: float
 var log10_sfr_msun_per_yr: float

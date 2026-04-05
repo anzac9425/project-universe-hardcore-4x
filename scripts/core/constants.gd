@@ -103,7 +103,27 @@ enum HashPurpose {
 	GALAXY_HALO_SPIN,# [use] halo spin sampling
 	STAR_MASS,        # [use] IMF star mass sampling
 	GALAXY_STAR_R_HALO,    # halo 별 반경 샘플링 (log-uniform)
-	GALAXY_STAR_PHI_HALO   # halo 별 방위각 샘플링
+	GALAXY_STAR_PHI_HALO,   # halo 별 방위각 샘플링
+	CLUSTER_OB_N,           # = 39  OB 성협 개수 산포
+	CLUSTER_OB_MASS,        # = 40  OB 성협 질량 (CMF 역CDF)
+	CLUSTER_OB_AGE,         # = 41  OB 성협 나이
+	CLUSTER_OB_R,           # = 42  OB 성협 반경 위치
+	CLUSTER_OB_PHI,         # = 43  OB 성협 방위각 (균일/암 선택)
+	CLUSTER_OB_PHI_ARM,     # = 44  OB 성협 나선팔 산포
+	CLUSTER_OB_SIZE,        # = 45  OB 성협 물리적 크기 산포
+	CLUSTER_HII_N_E,        # = 46  HII 영역 전자 밀도
+	CLUSTER_GC_N,           # = 47  GC 개수 산포
+	CLUSTER_GC_MASS,        # = 48  GC 질량 (log-normal GCMF)
+	CLUSTER_GC_POS,         # = 49  GC 3D 위치
+	CLUSTER_GC_AGE,         # = 50  GC 나이
+	CLUSTER_GC_FEH,         # = 51  GC 금속도 (이중 계통)
+	CLUSTER_GC_KING,        # = 52  GC 반값 반지름 · King 집중도
+	CLUSTER_GMC_N,          # = 53  GMC 개수 산포
+	CLUSTER_GMC_MASS,       # = 54  GMC 질량 + 표면밀도 산포
+	CLUSTER_GMC_R,          # = 55  GMC 반경 위치
+	CLUSTER_GMC_PHI,        # = 56  GMC 방위각 (균일/암 선택)
+	CLUSTER_GMC_PHI_ARM,    # = 57  GMC 나선팔 산포
+	CLUSTER_TURB_MODE,      # = 58  난류 Fourier 모드 (방향·위상·산포)
 }
 
 
