@@ -10,6 +10,7 @@ git pull --rebase
 git add .
 git commit -m ""
 git push
+git push origin main --force
 ```
 
 ## TODO/BUG
