@@ -290,7 +290,7 @@ func _update_star_zoom_compensation() -> void:
 	if is_instance_valid(_map_camera):
 		zoom_value = max(_map_camera.zoom.x, 0.0001)
 
-	_star_material.set_shader_parameter("zoom_compensation", zoom_value)
+	_star_material.set_shader_parameter("zoom_compensation", 1.0 / zoom_value)
 
 
 func _temperature_to_color(log10_t_eff_k: float, sat: float = 0.55, value_mul: float = 1.0) -> Color:

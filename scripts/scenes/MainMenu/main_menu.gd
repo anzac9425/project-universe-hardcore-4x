@@ -1,6 +1,6 @@
 extends Node2D
 
-@export var base_seed: int = 7290609
+@export var base_seed: int = 9402
 # 1122: 61.63MW, 11221917: 0.017MW
 @export var base_n_star: int = 10_000
 
