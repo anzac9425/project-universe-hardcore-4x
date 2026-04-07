@@ -22,7 +22,7 @@ git push origin main --force
   - cap 값이 물리 의도를 망치지 않는지 재검토
   - Dictionary 대신 타입 있는 구조체로 점진 이행
   - GC/GMC/OB 분포에 z 또는 디스크 두께 반영
-  - n_star를 base_n_star 기준으로 재설정하는것과 같이 성단 수도 줄이기
+  - n_star를 base_n_star 기준으로 재설정하는 것과 같이 성단 수도 줄이기
 
   - 디버깅
   - 최적화
