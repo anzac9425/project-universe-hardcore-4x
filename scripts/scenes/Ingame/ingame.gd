@@ -7,6 +7,7 @@ const SYSTEM_COLOR := Color("74c0fc")
 const STAR_BASE_SIZE := 2.2
 const STAR_MAX_SIZE := 11.5
 const STAR_MAP_SCALE := 16.0
+const STAR_CAMERA_PATH := "MapCamera/Camera2D"
 const SMBH_BASE_RADIUS := 10.0
 const SMBH_MAX_RADIUS := 58.0
 const SMBH_RING_MIN := 3.5
@@ -14,11 +15,19 @@ const SMBH_RING_MAX := 18.0
 const SMBH_JET_MAX_LENGTH := 460.0
 
 var _star_field: MultiMeshInstance2D
+var _star_material: ShaderMaterial
+var _map_camera: Camera2D
 
 
 func _ready() -> void:
+	_map_camera = get_node_or_null(STAR_CAMERA_PATH) as Camera2D
 	_build_star_field()
+	_update_star_zoom_compensation()
 	queue_redraw()
+
+
+func _process(_delta: float) -> void:
+	_update_star_zoom_compensation()
 
 
 func _draw() -> void:
@@ -216,8 +225,10 @@ func _build_star_field() -> void:
 	_star_field = MultiMeshInstance2D.new()
 	_star_field.multimesh = multimesh
 	_star_field.texture = _build_star_texture()
-	_star_field.material = _build_star_shader_material()
+	_star_material = _build_star_shader_material()
+	_star_field.material = _star_material
 	add_child(_star_field)
+	_update_star_zoom_compensation()
 
 
 func _build_star_texture() -> Texture2D:
@@ -232,8 +243,10 @@ func _build_star_shader_material() -> ShaderMaterial:
 shader_type canvas_item;
 
 varying vec4 instance_custom_data;
+uniform float zoom_compensation = 1.0;
 
 void vertex() {
+	VERTEX *= zoom_compensation;
 	instance_custom_data = INSTANCE_CUSTOM;
 }
 
@@ -267,6 +280,17 @@ void fragment() {
 	var mat := ShaderMaterial.new()
 	mat.shader = shader
 	return mat
+
+
+func _update_star_zoom_compensation() -> void:
+	if _star_material == null:
+		return
+
+	var zoom_value := 1.0
+	if is_instance_valid(_map_camera):
+		zoom_value = max(_map_camera.zoom.x, 0.0001)
+
+	_star_material.set_shader_parameter("zoom_compensation", zoom_value)
 
 
 func _temperature_to_color(log10_t_eff_k: float, sat: float = 0.55, value_mul: float = 1.0) -> Color:
