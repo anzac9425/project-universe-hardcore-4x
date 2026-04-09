@@ -8,11 +8,11 @@ const STAR_BASE_SIZE := 2.2
 const STAR_MAX_SIZE := 11.5
 const STAR_MAP_SCALE := 16.0
 const STAR_CAMERA_PATH := "MapCamera/Camera2D"
-const SMBH_BASE_RADIUS := 10.0
-const SMBH_MAX_RADIUS := 58.0
-const SMBH_RING_MIN := 3.5
-const SMBH_RING_MAX := 18.0
-const SMBH_JET_MAX_LENGTH := 460.0
+const SMBH_BASE_RADIUS := 0.1
+const SMBH_MAX_RADIUS := 0.1
+const SMBH_RING_MIN := 0.1
+const SMBH_RING_MAX := 0.1
+const SMBH_JET_MAX_LENGTH := 0.1
 
 var _star_field: MultiMeshInstance2D
 var _star_material: ShaderMaterial
