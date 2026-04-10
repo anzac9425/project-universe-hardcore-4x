@@ -45,3 +45,4 @@ var z_gradient_dex_per_kpc: float
 var z_scatter_dex: float
 
 var systems: Array[SystemData] = []
+var clusters: Dictionary = {}

@@ -36,7 +36,7 @@ func _draw() -> void:
 		return
 
 	draw_circle(Vector2.ZERO, SYSTEM_DOT_RADIUS * 1.4, GALAXY_CENTER_COLOR)
-	_draw_smbh_overlay()
+	#_draw_smbh_overlay()
 
 	for system in GameSession.galaxy.systems:
 		draw_circle(system.location, SYSTEM_DOT_RADIUS, SYSTEM_COLOR)

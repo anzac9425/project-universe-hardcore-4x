@@ -275,6 +275,24 @@ static func generate(base_seed: int, base_n_star: int) -> GalaxyData:
 	galaxy_field.star_population = galaxy_field_dict["star_population"] # [use] StarPhysics output
 	galaxy.galaxy_field = galaxy_field
 	
+	# --- Phase 9: cluster / nebula generation ---
+	var cluster_dict := ClusterPhysics.build_clusters(
+		galaxy_seed,
+		galaxy_type,
+		galaxy.sfr_msun_per_yr,
+		C.logx(max(m_star_msun, 1e-6)),
+		galaxy.feh_center,
+		galaxy.age_gyr,
+		galaxy.f_gas,
+		m_gas_msun,
+		disk_size.r_d_kpc,
+		galaxy_field.spiral,
+		halo.rvir_kpc,
+		halo.r200c_kpc
+	)
+
+	galaxy.clusters = cluster_dict
+	
 	_log_galaxy(galaxy)
 	return galaxy
 
